@@ -1,0 +1,12 @@
+{
+  "network": "base-sepolia",
+  "chainId": 84532,
+  "deployedAt": 38272672,
+  "MockWETH": "0x9F22C578DFEC01Fa58DBDA1B49427Fdfb91B2b0F",
+  "MockUSDC": "0x1bb719EFd1bFffAa6D79c1e0512cb6D893144829",
+  "LendingProtocol": "0x5a73c532Fd82C5B2d1BE21d7acff51adfACaBc6f",
+  "RegulatorPortal": "0x857597Ff99083c83C1c33165A61915236F20A888",
+  "ComplianceRegistry": "0xFbE3F85Ab541Cd538542B543E87706D00e1f7013",
+  "UltraVerifier": "0x93362E57c5dBA158420c8db8CB4484b12f96bB84",
+  "agentWallet": "0xd707187453D29b8b3b017A02e4E6d6f6E5222017"
+}
