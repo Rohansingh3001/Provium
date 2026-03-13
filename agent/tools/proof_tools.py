@@ -223,18 +223,6 @@ def commit_merkle_root(root: str, block_number: int) -> str:
         return json.dumps({"error": str(e)})
 
 
-def _load_cached_proof_artifacts() -> tuple[str, list[str]] | None:
-    proof_dir = CIRCUITS_PATH / "target" / "proof" / "collateral_proof.proof"
-    proof_file = proof_dir / "proof"
-    public_inputs_file = proof_dir / "public_inputs"
-    if not proof_file.exists() or not public_inputs_file.exists():
-        return None
-    proof_hex = "0x" + proof_file.read_bytes().hex()
-    pi_raw = public_inputs_file.read_bytes()
-    public_inputs = ["0x" + pi_raw[i:i+32].hex() for i in range(0, len(pi_raw), 32)]
-    return proof_hex, public_inputs
-
-
 def generate_zk_proof(prover_toml_content: str) -> str:
     """
     Generate a REAL ZK proof using Noir + Barretenberg.
@@ -285,18 +273,6 @@ def generate_zk_proof(prover_toml_content: str) -> str:
 
         if execute_result.returncode != 0:
             elapsed = round(time.time() - t0, 1)
-            cached = _load_cached_proof_artifacts()
-            if cached is not None:
-                proof_hex, public_inputs = cached
-                return json.dumps({
-                    "proof_hex": proof_hex,
-                    "public_inputs_json": json.dumps(public_inputs),
-                    "is_compliant": True,
-                    "generation_time_seconds": elapsed,
-                    "stdout": execute_result.stdout[-500:],
-                    "stderr": (execute_result.stderr + "\nUsing cached valid proof artifacts for demo flow.")[-500:],
-                    "used_cached_proof": True,
-                })
             return json.dumps({
                 "error": f"nargo execute failed: {execute_result.stderr[-500:]}",
                 "is_compliant": False,
@@ -327,18 +303,6 @@ def generate_zk_proof(prover_toml_content: str) -> str:
         is_compliant = prove_result.returncode == 0
 
         if not is_compliant:
-            cached = _load_cached_proof_artifacts()
-            if cached is not None:
-                proof_hex, public_inputs = cached
-                return json.dumps({
-                    "proof_hex": proof_hex,
-                    "public_inputs_json": json.dumps(public_inputs),
-                    "is_compliant": True,
-                    "generation_time_seconds": elapsed,
-                    "stdout": (execute_result.stdout + "\n" + prove_result.stdout)[-500:],
-                    "stderr": ((execute_result.stderr + "\n" + prove_result.stderr) + "\nUsing cached valid proof artifacts for demo flow.")[-500:],
-                    "used_cached_proof": True,
-                })
             return json.dumps({
                 "error": f"bb prove failed (circuit constraints not satisfied): {prove_result.stderr[-500:]}",
                 "is_compliant": False,

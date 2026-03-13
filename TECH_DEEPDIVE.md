@@ -30,9 +30,9 @@ JUDGES / REGULATORS
 ┌──────────────────────────────────────────────────────┐
 │               PYTHON AGENT (3 sub-agents)             │
 │                                                       │
-│  Watcher  →  compound-beta (Groq)  →  DuckDuckGo     │
-│  Analyst  →  llama3-70b-tool-use (Groq)               │
-│  Reporter →  llama-3.3-70b (Groq)  →  nargo prove    │
+│  Watcher  →  llama-3.3-70b-versatile (Groq)  →  chain data  │
+│  Analyst  →  llama-3.3-70b-versatile (Groq)                 │
+│  Reporter →  orchestrator Python tools  →  nargo prove      │
 └──────────────────┬───────────────────────────────────┘
                    │ nargo prove
                    ▼
@@ -138,11 +138,11 @@ Groq makes an inference chip (LPU — Language Processing Unit) that runs LLMs d
 
 ### The Three Models We Use
 
-**Watcher uses `compound-beta`**
-This is Groq's compound model — it autonomously orchestrates multiple sub-calls without being prompted for each step. When we tell it "check OFAC updates," it decides to search DuckDuckGo, reads the results, synthesises them, and returns a structured assessment. It's not just text generation — it's autonomous tool-calling with reasoning.
+**Watcher uses `llama-3.3-70b-versatile`**
+Meta's Llama 3.3 70B model running on Groq's LPU infrastructure. The Watcher uses it to synthesise on-chain data — health factors, collateral ratios, pending regulator requests — into a structured risk assessment (`low / medium / high / critical`). No external search tools; all inputs are live on-chain data fetched directly via Web3.
 
-**Analyst uses `llama3-groq-70b-8192-tool-use-preview`**
-This is a Llama 3 70B model that Groq fine-tuned specifically for tool use and structured JSON output. When we ask it to decide "what proof do we need?" it returns a precise JSON array of actions with correctly typed fields. Fine-tuning matters here — a vanilla model might return text where we need JSON.
+**Analyst uses `llama-3.3-70b-versatile`**
+The same model is used for the Analyst agent, which decides what compliance actions to take based on the Watcher's risk assessment. It returns a precise JSON array of actions with correctly typed fields — e.g. `{"action": "generate_proof", "reason": "..."}`. The model's instruction-following capability is key here.
 
 **Reporter uses `llama-3.3-70b-versatile`**
 The most capable general model for writing the on-chain reasoning string — professional, specific, cites actual numbers.
@@ -173,8 +173,8 @@ Each of our three agents is an `agno.agent.Agent` object with:
 ```python
 watcher_agent = Agent(
     name="Provium Watcher",
-    model=Groq(id="compound-beta"),
-    tools=[DuckDuckGoTools(), get_all_positions, ...],
+    model=Groq(id="llama-3.3-70b-versatile"),
+    tools=[get_all_positions, get_pending_regulator_requests, ...],
     instructions=[...]
 )
 ```
@@ -242,12 +242,16 @@ Base is an Ethereum L2 built by Coinbase, using the OP Stack (Optimism). Sepolia
 - Full EVM compatibility — all our Solidity runs identically on Ethereum mainnet
 - Coinbase integration makes it relevant for regulated finance
 
-**Our deployed addresses (Base Sepolia):**
-- LendingProtocol: `0x0cc4fb47eFB36c2758c5228c6DA52884Fd2Ce501`
-- RegulatorPortal: `0x99A6964aF13a92224c2cAB10BF327Ce7bA280dFA`
-- ComplianceRegistry: `0x7C6807917E2c473eBDCEe703eAF2b02646daF79f`
-- UltraVerifier: `0xc745344598ec09aEf3EE2Cbc388aFDBaF4734d46`
+**Our deployed addresses (Base Sepolia — redeployed 2026-03-01):**
+- MockWETH: `0x9F22C578DFEC01Fa58DBDA1B49427Fdfb91B2b0F`
+- MockUSDC: `0x1bb719EFd1bFffAa6D79c1e0512cb6D893144829`
+- LendingProtocol: `0x5a73c532Fd82C5B2d1BE21d7acff51adfACaBc6f`
+- RegulatorPortal: `0x857597Ff99083c83C1c33165A61915236F20A888`
+- ComplianceRegistry: `0xFbE3F85Ab541Cd538542B543E87706D00e1f7013`
+- UltraVerifier: `0x93362E57c5dBA158420c8db8CB4484b12f96bB84`
 - Agent wallet: `0xd707187453D29b8b3b017A02e4E6d6f6E5222017`
+
+UltraVerifier is now **wired into** ComplianceRegistry and RegulatorPortal — `submitReport()` and `fulfillRequest()` both call `UltraVerifier.verify()` internally and revert if the proof is invalid.
 
 ---
 
@@ -380,7 +384,7 @@ Because ENS lives on Ethereum mainnet (not Base Sepolia), our `wagmi.ts` configu
 
 ---
 
-## 10. OFAC Screening — The Real-Time Compliance Layer
+## 10. OFAC Screening — The Compliance Context
 
 ### What OFAC Is
 
@@ -388,13 +392,11 @@ OFAC (Office of Foreign Assets Control) is a US Treasury department. It maintain
 
 ### How We Screen
 
-The Watcher agent runs `compound-beta` which calls `DuckDuckGoTools()` — a real web search — every 60 seconds, searching for:
-- `"OFAC SDN list update today"`
-- `"DeFi compliance regulation news today"`
+The Watcher agent uses `llama-3.3-70b-versatile` to assess compliance risk from live on-chain data — health factors, hours since last proof, and pending regulator requests. It synthesises these into a risk level: `low / medium / high / critical`. This feeds the Analyst's decision — if risk level is elevated, it adjusts urgency even if on-chain ratios look fine.
 
-It synthesises results into a risk level: `low / medium / high / critical`. This feeds the Analyst's decision — if risk level is elevated, it adjusts urgency even if on-chain ratios look fine.
+Risk assessment is on-chain data only (no external web search), making the agent deterministic and independent of third-party API availability during a live demo.
 
-**This is not a hardcoded check against a static list.** It's an AI that reads the internet and adjusts its behaviour. That's the correct approach for a live, evolving sanctions environment.
+**For production**: a dedicated OFAC module could cross-reference the SDN list against protocol participants. The current system focuses on the solvency proof layer — the core regulatory requirement under the GENIUS Act.
 
 ---
 
@@ -419,7 +421,7 @@ Our circuit hardcodes `min_ratio_bps = 15000` (150%) as the threshold. Every pro
 | **UltraVerifier** | Auto-generated Solidity contract — rejects any proof that doesn't satisfy the circuit |
 | **Merkle tree** | Fingerprints all 16 positions into one root — proves membership without revealing individual data |
 | **Groq** | Fastest LLM inference available — runs three AI agent models, stores reasoning on-chain |
-| **compound-beta** | Groq's compound model — the Watcher, autonomously searches the web and synthesises results |
+| **llama-3.3-70b-versatile** | Groq model used by both Watcher and Analyst — chain data analysis + compliance decisions |
 | **Agno** | Python agent framework — wires Groq models to on-chain tools |
 | **Base Sepolia** | L2 testnet — 2s blocks, ~$0.001/tx, identical to mainnet Ethereum |
 | **wagmi + viem** | React hooks for live on-chain data — dashboard refetches every 30s with exponential retry |
@@ -429,5 +431,5 @@ Our circuit hardcodes `min_ratio_bps = 15000` (150%) as the threshold. Every pro
 | **diskcache** | Python SQLite cache — 30s TTL for chain reads, no Redis needed, fallback to in-memory |
 | **RainbowKit** | Wallet connect UI — Connect Wallet button |
 | **ENS** | Ethereum Name Service — shows `name.eth` instead of `0x...` addresses |
-| **OFAC** | US Treasury sanctions list — Watcher searches for updates in real time via DuckDuckGo |
+| **OFAC** | US Treasury sanctions list — Watcher assesses risk from live on-chain data every epoch |
 | **GENIUS Act** | July 2025 US law — mandates 150% collateral, our circuit enforces it cryptographically |

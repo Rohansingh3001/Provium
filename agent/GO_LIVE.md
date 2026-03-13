@@ -51,7 +51,7 @@ Runs every 60 seconds. Use `--interval 300` for 5-minute epochs.
 
 | Agent | Role | LLM Used For |
 |-------|------|--------------|
-| **Watcher** | On-chain risk assessment + OFAC search | Chain data → risk_level (`low/medium/high/critical`), live DuckDuckGo OFAC/sanction news |
+| **Watcher** | On-chain risk assessment | Chain data → risk_level (`low/medium/high/critical`), pending requests |
 | **Analyst** | Decision logic | Chain metrics → actions[] with urgency, agent_reasoning |
 | **Reporter** | Proof pipeline | Tools called by orchestrator (no LLM in loop) |
 
@@ -69,7 +69,6 @@ All three agents use `llama-3.3-70b-versatile` (Groq). The orchestrator wires da
 | Proof invalid | Ensure `poseidon-hash` installed; Merkle tree must match circuit |
 | Groq rate limit | Slow `--interval` or use paid plan |
 | RPC timeout | Use Alchemy/Infura RPC instead of public |
-| "Why is price hardcoded?" | Testnet uses `WETH_PRICE_USDC = 2000`. Production: read Chainlink ETH/USD feed at `0x71041dddad3595F9CEd3DcCFBe3D1F4b0a16Bb70` (Base) — one extra `latestRoundData()` call in `chain_tools.py`. |
 
 ---
 

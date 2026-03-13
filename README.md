@@ -76,6 +76,8 @@ zkcomply/
 
 ## 📚 Documentation
 
+- **[docs/README.md](./docs/README.md)** — Structured documentation index
+
 - **[DEPLOY.md](./DEPLOY.md)** — Complete deployment guide
 - **[BOUNTY_TRACKS.md](./BOUNTY_TRACKS.md)** — ENS, BitGo, and Base submission mapping
 - **[HACKATHON_READY.md](./HACKATHON_READY.md)** — Hackathon checklist and demo flow
