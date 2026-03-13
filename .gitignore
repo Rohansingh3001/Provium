@@ -1,0 +1,51 @@
+# OS / editor
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
+
+# Secrets / local config
+.env
+.env.*
+!.env.example
+!.env.local.example
+
+# Python
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.mypy_cache/
+.venv/
+venv/
+agent/venv/
+agent/.cache/
+agent/logs/
+
+# Node / Next
+node_modules/
+.next/
+out/
+coverage/
+*.tsbuildinfo
+
+# Build artifacts
+build/
+dist/
+cache/
+artifacts/
+typechain-types/
+target/
+
+# Project-specific generated files
+contracts/artifacts/
+contracts/cache/
+contracts/typechain-types/
+contracts/src_backup/
+contracts/*.log
+dashboard/.next/
+dashboard/build.log
+dashboard/build-output.txt
+circuits/**/target/
+
+# Misc
+*.log
