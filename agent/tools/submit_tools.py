@@ -9,6 +9,7 @@ from web3 import Web3
 from eth_account import Account
 from dotenv import load_dotenv
 from agno.tools import tool
+from tools.bitgo_tools import send_via_bitgo
 
 load_dotenv()
 
@@ -34,10 +35,11 @@ except Exception as e:
 
 REGISTRY_ABI = [
     {"inputs": [
+        {"name": "proof",           "type": "bytes"},
+        {"name": "publicInputs",    "type": "bytes32[]"},
         {"name": "proofType",       "type": "uint8"},
         {"name": "trigger",         "type": "uint8"},
         {"name": "blockNumber",     "type": "uint256"},
-        {"name": "proofHash",       "type": "bytes32"},
         {"name": "isCompliant",     "type": "bool"},
         {"name": "totalCollateral", "type": "uint256"},
         {"name": "totalDebt",       "type": "uint256"},
@@ -66,14 +68,36 @@ portal   = w3.eth.contract(address=PORTAL_ADDR,   abi=PORTAL_ABI)
 verifier = w3.eth.contract(address=VERIFIER_ADDR,  abi=VERIFIER_ABI)
 
 
+def _with_0x(tx_hash: str) -> str:
+    return tx_hash if tx_hash.startswith("0x") else f"0x{tx_hash}"
+
+
 def _send_tx(fn, account) -> str:
     """Build, sign, send, wait. Returns tx hash hex."""
-    nonce  = w3.eth.get_transaction_count(account.address)
-    tx     = fn.build_transaction({"from": account.address, "nonce": nonce, "gasPrice": w3.eth.gas_price})
-    signed = account.sign_transaction(tx)
-    h      = w3.eth.send_raw_transaction(signed.raw_transaction).hex()
-    w3.eth.wait_for_transaction_receipt(h, timeout=90)
-    return h
+    calldata = fn._encode_transaction_data()
+
+    bitgo_result = send_via_bitgo(fn.address, calldata)
+    if bitgo_result and bitgo_result.get("txid"):
+        tx_hash = str(bitgo_result["txid"])
+        receipt = w3.eth.wait_for_transaction_receipt(tx_hash, timeout=180)
+        return receipt["transactionHash"].hex()
+
+    last_error = None
+    for _ in range(2):
+        try:
+            nonce = w3.eth.get_transaction_count(account.address, "pending")
+            tx = fn.build_transaction({"from": account.address, "nonce": nonce, "gasPrice": w3.eth.gas_price})
+            signed = account.sign_transaction(tx)
+            h = w3.eth.send_raw_transaction(signed.raw_transaction).hex()
+            w3.eth.wait_for_transaction_receipt(h, timeout=90)
+            return h
+        except ValueError as e:
+            last_error = e
+            if "nonce too low" not in str(e).lower():
+                raise
+    if last_error is not None:
+        raise last_error
+    raise RuntimeError("Failed to send transaction")
 
 
 def submit_proof_to_registry(
@@ -114,14 +138,14 @@ def submit_proof_to_registry(
             # Log it but do NOT silently claim verified=True.
             verified = False
 
-        proof_hash = Web3.keccak(proof_bytes)
         block_num  = w3.eth.block_number
 
         fn = registry.functions.submitReport(
+            proof_bytes,
+            public_inputs,
             0,                # proofType = COLLATERAL
             trigger,          # 0=routine, 1=urgent, 2=regulator_request
             block_num,
-            proof_hash,
             verified,
             total_collateral,
             total_debt,
@@ -131,11 +155,12 @@ def submit_proof_to_registry(
         )
         tx_hash = _send_tx(fn, account)
         receipt = w3.eth.get_transaction_receipt(tx_hash)
+        tx_hash_0x = _with_0x(tx_hash)
 
         return json.dumps({
             "report_id":         "see logs",
-            "tx_hash":           "0x" + tx_hash,
-            "basescan_url":      f"https://sepolia.basescan.org/tx/0x{tx_hash}",
+            "tx_hash":           tx_hash_0x,
+            "basescan_url":      f"https://sepolia.basescan.org/tx/{tx_hash_0x}",
             "block_number":      receipt["blockNumber"],
             "verified_on_chain": verified,
             "verify_error":      verify_error,  # None if verifier call succeeded
@@ -164,10 +189,11 @@ def fulfill_regulator_request(
 
         fn      = portal.functions.fulfillRequest(request_id, proof_bytes, public_inputs, agent_reasoning)
         tx_hash = _send_tx(fn, account)
+        tx_hash_0x = _with_0x(tx_hash)
 
         return json.dumps({
-            "tx_hash":        "0x" + tx_hash,
-            "basescan_url":   f"https://sepolia.basescan.org/tx/0x{tx_hash}",
+            "tx_hash":        tx_hash_0x,
+            "basescan_url":   f"https://sepolia.basescan.org/tx/{tx_hash_0x}",
             "request_id":     request_id,
             "status":         "fulfilled",
         })

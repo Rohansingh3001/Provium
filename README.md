@@ -77,6 +77,7 @@ zkcomply/
 ## 📚 Documentation
 
 - **[DEPLOY.md](./DEPLOY.md)** — Complete deployment guide
+- **[BOUNTY_TRACKS.md](./BOUNTY_TRACKS.md)** — ENS, BitGo, and Base submission mapping
 - **[HACKATHON_READY.md](./HACKATHON_READY.md)** — Hackathon checklist and demo flow
 - **[WHITEPAPER.md](./WHITEPAPER.md)** — Technical deep dive
 - **[TECH_DEEPDIVE.md](./TECH_DEEPDIVE.md)** — ZK + agent architecture deep dive

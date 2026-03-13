@@ -4,9 +4,7 @@ from agno.models.groq import Groq
 analyst_agent = Agent(
     name="Provium Analyst",
     role="Analyze compliance state and decide what proofs to generate",
-    # llama3-groq-70b-8192-tool-use-preview: Groq's fine-tuned #1 tool-use model —
-    # optimised for structured JSON output and function/tool calling accuracy.
-    model=Groq(id="llama3-groq-70b-8192-tool-use-preview"),
+    model=Groq(id="llama-3.3-70b-versatile"),
     instructions=[
         "You are a DeFi compliance analyst. You receive a report from the Watcher agent and decide what ZK compliance proofs to generate.",
         "DECISION RULES:",

@@ -124,6 +124,10 @@ PORTAL_ABI = [
 
 portal = w3.eth.contract(address=PORTAL_ADDR, abi=PORTAL_ABI)
 
+
+def _with_0x(tx_hash: str) -> str:
+    return tx_hash if tx_hash.startswith("0x") else f"0x{tx_hash}"
+
 def _send_tx(fn, acct) -> str:
     nonce  = w3.eth.get_transaction_count(acct.address, "pending")
     tx     = fn.build_transaction({"from": acct.address, "nonce": nonce, "gasPrice": w3.eth.gas_price})
@@ -153,14 +157,15 @@ def step1_submit_request():
     receipt  = w3.eth.get_transaction_receipt(tx_hash)
 
     print(f"  [✓] Request submitted!")
-    print(f"      TX:        0x{tx_hash[:20]}...")
+    tx_hash_0x = _with_0x(tx_hash)
+    print(f"      TX:        {tx_hash_0x[:22]}...")
     print(f"      Block:     {receipt['blockNumber']}")
     print(f"      RequestID: {req_id}")
-    print(f"      Basescan:  https://sepolia.basescan.org/tx/0x{tx_hash}")
+    print(f"      Basescan:  https://sepolia.basescan.org/tx/{tx_hash_0x}")
     return req_id
 
 
-def step2_check_pending():
+def step2_check_pending(preferred_id: int | None = None):
     """Poll the portal for pending requests."""
     print(f"\n[Step 2] Checking for pending requests...")
     pending = portal.functions.getPendingRequests().call()
@@ -171,7 +176,10 @@ def step2_check_pending():
     for r in pending:
         deadline_in = max(0, r[6] - int(time.time()))
         print(f"    ID={r[0]}  type={r[2]}  jurisdiction={r[4]}  expires_in={deadline_in}s")
-    return pending[0][0]  # return first pending request ID
+    pending_ids = [int(r[0]) for r in pending]
+    if preferred_id is not None and preferred_id in pending_ids:
+        return preferred_id
+    return pending_ids[0]
 
 
 def step3_fulfill_with_agent():
@@ -180,8 +188,11 @@ def step3_fulfill_with_agent():
     agent_dir = Path(__file__).parent / "agent"
     env = os.environ.copy()
     env["PATH"] = os.path.expanduser("~/.nargo/bin") + ":" + os.path.expanduser("~/.bb") + ":" + env.get("PATH", "")
-    venv_python = agent_dir / "venv" / "bin" / "python3"
-    python_bin  = str(venv_python) if venv_python.exists() else sys.executable
+    venv_candidates = [
+        agent_dir / ".venv" / "bin" / "python3",
+        agent_dir / "venv" / "bin" / "python3",
+    ]
+    python_bin = next((str(p) for p in venv_candidates if p.exists()), sys.executable)
 
     result = subprocess.run(
         [python_bin, "main.py", "--once"],
@@ -238,12 +249,13 @@ if __name__ == "__main__":
         print("\n[Step 1] Skipped (--skip-submit)")
 
     # Step 2: Confirm it's pending
-    pending_id = step2_check_pending()
+    pending_id = step2_check_pending(req_id)
     if pending_id is None and req_id is None:
         print("\n  Nothing to fulfill. Exiting.")
         sys.exit(0)
-    if req_id is None:
-        req_id = pending_id
+
+    active_req_id = pending_id if pending_id is not None else req_id
+    req_id = active_req_id
 
     # Step 3: Fulfill (via agent or direct)
     if args.use_agent:
@@ -277,7 +289,8 @@ if __name__ == "__main__":
             tx_hash  = _send_tx(fn, agent_acct)
             url      = f"https://sepolia.basescan.org/tx/0x{tx_hash}"
             print(f"  [✓] fulfillRequest() accepted!")
-            print(f"      TX:       0x{tx_hash[:20]}...")
+            tx_hash_0x = _with_0x(tx_hash)
+            print(f"      TX:       {tx_hash_0x[:22]}...")
             print(f"      Basescan: {url}")
         except Exception as e:
             err = str(e)

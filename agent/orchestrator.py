@@ -146,9 +146,9 @@ PENDING REGULATOR REQUESTS: {requests_str}
 LATEST REPORT: {report_str}
 
 Your tasks:
-1. Search DuckDuckGo for "OFAC SDN list update {datetime.now(timezone.utc).strftime('%B %Y')}" to check for recent sanctions changes.
-2. Search DuckDuckGo for "DeFi GENIUS Act compliance news" for regulatory context.
-3. Assess the protocol's risk level based on both the on-chain data above and any OFAC/regulatory news you find.
+1. Assess the protocol risk level from this on-chain state.
+2. If sanctions/news context is not present in the prompt, set ofac_news to "No external sanctions feed provided".
+3. Write a short professional summary for the Analyst.
 
 Respond with JSON only:
 {{"risk_level": "low|medium|high|critical", "ofac_news": "<summarise what you found — or 'No new OFAC updates found' if the search returned nothing relevant>", "summary": "<2-3 sentence professional risk assessment>"}}
@@ -229,6 +229,9 @@ Return ONLY a JSON array (no other text):
         log.info(f"  Analyst raw response (truncated): {analyst_text[:200]}")
         actions = _extract_json(analyst_text)
         if isinstance(actions, list) and len(actions) > 0:
+            if any((a.get("request_id", 0) or 0) > 0 for a in actions) and hours_old <= 1:
+                actions = [a for a in actions if (a.get("request_id", 0) or 0) > 0]
+
             log.info(f"  Actions decided: {len(actions)}")
             for a in actions:
                 # Normalize: LLM may return 'reasoning' instead of 'agent_reasoning'

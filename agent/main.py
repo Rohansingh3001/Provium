@@ -94,15 +94,15 @@ def check_poseidon_hash() -> bool:
         return True
     except RuntimeError as e:
         print(f"  [X] poseidon-hash not installed: {e}")
-        print("      → pip install poseidon-hash>=1.1.0")
+        print("      → pip install poseidon-hash>=0.1.4")
         return False
     except Exception as e:
         print(f"  [X] BN254 Poseidon check failed: {e}")
         return False
 
 
-
-    """Verify we can reach the RPC and contracts."""
+def check_rpc_connectivity() -> bool:
+    """Verify we can reach the Base Sepolia RPC endpoint."""
     try:
         from web3 import Web3
         rpc = os.getenv("BASE_SEPOLIA_RPC", "https://sepolia.base.org")
