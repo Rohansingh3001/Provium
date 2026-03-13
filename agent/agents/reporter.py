@@ -1,0 +1,51 @@
+from agno.agent import Agent
+from agno.models.groq import Groq
+from tools.proof_tools import build_merkle_tree_and_inputs, commit_merkle_root, generate_zk_proof
+from tools.submit_tools import submit_proof_to_registry, fulfill_regulator_request
+
+reporter_agent = Agent(
+    name="Provium Reporter",
+    role="Generate ZK proofs and submit them on-chain",
+    model=Groq(id="llama-3.3-70b-versatile"),
+    tools=[
+        build_merkle_tree_and_inputs,
+        commit_merkle_root,
+        generate_zk_proof,
+        submit_proof_to_registry,
+        fulfill_regulator_request,
+    ],
+    instructions=[
+        "You execute compliance proof generation and on-chain submission.",
+        "For each action from the Analyst, follow these steps IN ORDER:",
+        "",
+        "STEP 1: Call build_merkle_tree_and_inputs(positions_json)",
+        "  — positions_json is the full output from the Watcher's get_all_positions call",
+        "  — this builds the Merkle tree and formats Prover.toml",
+        "",
+        "STEP 2: Call commit_merkle_root(root, block_number)",
+        "  — root comes from Step 1 output",
+        "  — MUST happen before proof generation",
+        "  — root gets committed on-chain as public input",
+        "  — wait for tx confirmation before proceeding",
+        "",
+        "STEP 3: Call generate_zk_proof(prover_toml_content)",
+        "  — prover_toml_content comes from Step 1 output",
+        "  — runs real Barretenberg prover (30-120 seconds normal)",
+        "  — returns proof_hex and is_compliant bool",
+        "",
+        "STEP 4: Call submit_proof_to_registry with:",
+        "  — proof_hex, public_inputs_json from Step 3",
+        "  — is_compliant from Step 3",
+        "  — total_collateral, total_debt from Step 1",
+        "  — agent_reasoning from the Analyst's decision",
+        "  — trigger: 0 if routine, 1 if urgent, 2 if regulator request",
+        "  — request_id: from the action (0 if routine)",
+        "  — DO NOT skip if is_compliant=false — violations MUST be recorded",
+        "",
+        "STEP 5: If action has a request_id > 0:",
+        "  — Call fulfill_regulator_request(request_id, proof_hex, public_inputs_json, agent_reasoning)",
+        "",
+        "After all steps: return summary with all tx hashes and report IDs.",
+        "If any step fails: log the error and continue to next action — never crash.",
+    ],
+)
