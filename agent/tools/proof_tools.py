@@ -17,6 +17,7 @@ from web3 import Web3
 from eth_account import Account
 from dotenv import load_dotenv
 from agno.tools import tool
+from tools.tx_utils import _get_account, _eip1559_params
 
 load_dotenv()
 
@@ -24,7 +25,6 @@ load_dotenv()
 BN254_PRIME = 21888242871839275222246405745257275088548364400416034343698204186575808495617
 
 RPC            = os.getenv("BASE_SEPOLIA_RPC", "https://sepolia.base.org")
-AGENT_KEY      = os.getenv("AGENT_PRIVATE_KEY", "")
 CIRCUITS_PATH  = Path(os.getenv("CIRCUITS_PATH", "../circuits/collateral_proof"))
 DEPLOYMENTS    = Path(os.getenv("DEPLOYMENTS_PATH", "../contracts/deployments/base-sepolia.json"))
 
@@ -135,7 +135,8 @@ def build_merkle_tree_and_inputs(positions_json: str) -> str:
 
         total_coll = sum(collaterals)
         total_debt = sum(debts)
-        ratio_bps  = int(total_coll * 2000 * 1e6 * 10000 / (total_debt * 1e18)) if total_debt else 999999
+        # Integer arithmetic avoids float precision loss on large wei values.
+        ratio_bps  = (total_coll * 2000 * 10**6 * 10000) // (total_debt * 10**18) if total_debt else 999999
 
         block_num  = data.get("block", w3.eth.block_number)
         root_str   = str(root)
@@ -190,7 +191,7 @@ def commit_merkle_root(root: str, block_number: int) -> str:
     if _is_dry_run():
         return json.dumps({"tx_hash": "0xDRY_RUN", "root": root, "block_number": block_number, "skipped": True})
     try:
-        account = Account.from_key(AGENT_KEY)
+        account = _get_account()
         root_bytes = int(root).to_bytes(32, "big") if root.isdigit() else bytes.fromhex(root.replace("0x", ""))
 
         last_error = None
@@ -198,9 +199,9 @@ def commit_merkle_root(root: str, block_number: int) -> str:
             try:
                 nonce = w3.eth.get_transaction_count(account.address, "pending")
                 tx = lending.functions.commitPositionRoot(root_bytes, block_number).build_transaction({
-                    "from":     account.address,
-                    "nonce":    nonce,
-                    "gasPrice": w3.eth.gas_price,
+                    "from":  account.address,
+                    "nonce": nonce,
+                    **_eip1559_params(w3),
                 })
                 signed = account.sign_transaction(tx)
                 tx_hash = w3.eth.send_raw_transaction(signed.raw_transaction).hex()

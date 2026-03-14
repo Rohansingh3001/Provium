@@ -30,6 +30,13 @@ contract RegulatorPortal is Ownable {
     address public lendingProtocol;
     IUltraVerifier public ultraVerifier;
 
+    // Rate limiting: minimum seconds between requests per address.
+    uint256 public constant REQUEST_COOLDOWN = 300; // 5 minutes
+    mapping(address => uint256) public lastRequestAt;
+
+    // Fulfillment window — 30 minutes to give agent time to generate proof.
+    uint256 public constant FULFILLMENT_WINDOW = 1800;
+
     event ComplianceRequested(uint256 indexed requestId, address requestor, uint8 proofType, string jurisdiction, uint256 targetBlock);
     event RequestFulfilled(uint256 indexed requestId, bytes32 proofHash, string agentReasoning, uint256 timestamp);
 
@@ -47,6 +54,11 @@ contract RegulatorPortal is Ownable {
         uint256 targetBlock,
         string calldata jurisdiction
     ) external returns (uint256) {
+        require(
+            block.timestamp >= lastRequestAt[msg.sender] + REQUEST_COOLDOWN,
+            "Rate limited: wait before submitting another request"
+        );
+        lastRequestAt[msg.sender] = block.timestamp;
         uint256 id = requestCount++;
         _storeRequest(id, proofType, targetBlock, jurisdiction);
         emit ComplianceRequested(id, msg.sender, proofType, jurisdiction, targetBlock);
@@ -66,7 +78,7 @@ contract RegulatorPortal is Ownable {
         r.targetBlock  = targetBlock;
         r.jurisdiction = jurisdiction;
         r.requestedAt  = block.timestamp;
-        r.deadline     = block.timestamp + 600;
+        r.deadline     = block.timestamp + FULFILLMENT_WINDOW;
     }
 
     function fulfillRequest(
@@ -141,6 +153,7 @@ contract RegulatorPortal is Ownable {
     }
 
     function setAgentAddress(address agent) external onlyOwner {
+        require(agent != address(0), "Zero address");
         agentAddress = agent;
     }
 }

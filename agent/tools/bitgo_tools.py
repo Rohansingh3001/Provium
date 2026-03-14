@@ -93,7 +93,7 @@ class BitGoClient:
         recipient_address: str,
         amount_wei: int,
         data_hex: str,
-        otp: str = "0000000",
+        otp: str = "",
     ) -> dict:
         """
         Send a transaction via BitGo multi-sig wallet.
@@ -106,13 +106,20 @@ class BitGoClient:
 
         Returns: {"txid": "0x...", "status": "signed", ...}
         """
+        # Resolve OTP: prefer argument, then env var, then testnet bypass default.
+        resolved_otp = otp or os.getenv("BITGO_OTP", "0000000")
+        if resolved_otp == "0000000" and BITGO_ENV == "prod":
+            log.warning(
+                "  [BitGo] WARNING: Using default OTP '0000000' in PRODUCTION. "
+                "Set BITGO_OTP in your .env to a real TOTP code before going live."
+            )
         url = f"{self.base_url}/{self.coin}/wallet/{self.wallet_id}/sendcoins"
         payload = {
             "address":    recipient_address,
             "amount":     str(amount_wei),
             "data":       data_hex,         # EVM calldata
             "walletPassphrase": BITGO_WALLET_PASSPHRASE,
-            "otp":        otp,              # 2FA — use 0000000 on testnet
+            "otp":        resolved_otp,
             "comment":    "Provium ZK compliance proof submission (BitGo secured)",
         }
         log.info(f"  [BitGo] Sending tx to {recipient_address[:20]}... via multi-sig wallet")

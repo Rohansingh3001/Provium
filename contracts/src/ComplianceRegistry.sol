@@ -29,6 +29,9 @@ contract ComplianceRegistry is Ownable {
     address public agentAddress;
     IUltraVerifier public ultraVerifier;
 
+    // Must match LendingProtocol.wethPriceInUSDC — update via setWethPrice() together.
+    uint256 public wethPriceInUSDC = 2000 * 1e6;
+
     event ReportSubmitted(
         uint256 indexed reportId,
         uint8 proofType,
@@ -36,7 +39,7 @@ contract ComplianceRegistry is Ownable {
         string agentReasoning,
         uint256 ratioBps
     );
-    
+
     event ViolationRecorded(
         uint256 indexed reportId,
         uint8 proofType,
@@ -71,7 +74,9 @@ contract ComplianceRegistry is Ownable {
             require(ultraVerifier.verify(proof, publicInputs), "ZK proof verification failed");
         }
         bytes32 proofHash = keccak256(proof);
-        uint256 ratioBps = totalDebt == 0 ? type(uint256).max : (totalCollateral * 2000 * 1e6 * 10000) / (totalDebt * 1e18);
+        uint256 ratioBps = totalDebt == 0
+            ? type(uint256).max
+            : (totalCollateral * wethPriceInUSDC * 10000) / (totalDebt * 1e18);
         uint256 id = reports.length;
 
         reports.push(ComplianceReport({
@@ -92,41 +97,65 @@ contract ComplianceRegistry is Ownable {
         }));
 
         emit ReportSubmitted(id, proofType, isCompliant, agentReasoning, ratioBps);
-        
+
         if (!isCompliant) {
             emit ViolationRecorded(id, proofType, blockNumber, ratioBps);
         }
-        
+
         return id;
     }
 
     function getReport(uint256 id) external view returns (ComplianceReport memory) {
+        require(id < reports.length, "Report not found");
         return reports[id];
     }
-    
+
+    // WARNING: unbounded — may revert at scale. Prefer getReports() with pagination.
     function getAllReports() external view returns (ComplianceReport[] memory) {
         return reports;
     }
-    
+
+    // Paginated reports: pass offset=0, limit=getReportCount() to get all.
+    function getReports(uint256 offset, uint256 limit)
+        external view returns (ComplianceReport[] memory page)
+    {
+        uint256 end = offset + limit;
+        if (end > reports.length) end = reports.length;
+        require(offset <= end, "Invalid range");
+        page = new ComplianceReport[](end - offset);
+        for (uint256 i = offset; i < end; i++) {
+            page[i - offset] = reports[i];
+        }
+    }
+
     function getLatestReport() external view returns (ComplianceReport memory) {
         require(reports.length > 0, "No reports");
         return reports[reports.length - 1];
     }
-    
+
     function isCurrentlyCompliant() external view returns (bool) {
         if (reports.length == 0) return true;
         return reports[reports.length - 1].isCompliant;
     }
-    
+
     function getReportCount() external view returns (uint256) {
         return reports.length;
     }
-    
+
+    // Verifier cannot be set to address(0) — use a dedicated governance process to replace it.
     function setVerifier(address _verifier) external onlyOwner {
+        require(_verifier != address(0), "Zero address: use a valid verifier");
         ultraVerifier = IUltraVerifier(_verifier);
     }
 
+    // Keep wethPriceInUSDC in sync with LendingProtocol.
+    function setWethPrice(uint256 newPrice) external onlyOwner {
+        require(newPrice > 0, "Price must be > 0");
+        wethPriceInUSDC = newPrice;
+    }
+
     function setAgentAddress(address agent) external onlyOwner {
+        require(agent != address(0), "Zero address");
         agentAddress = agent;
     }
 }
