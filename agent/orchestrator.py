@@ -38,6 +38,7 @@ from tools.chain_tools import (
 from tools.proof_tools  import build_merkle_tree_and_inputs, commit_merkle_root, generate_zk_proof
 from tools.submit_tools import submit_proof_to_registry, fulfill_regulator_request
 from tools.bitgo_tools import get_bitgo_wallet_info
+from tools.fileverse_tools import upload_compliance_dossier, get_fileverse_status
 from tools.ensip25 import log_ensip25_setup
 
 logging.basicConfig(
@@ -485,6 +486,14 @@ def run_epoch() -> dict:
         log.info("  [BitGo] Not configured — using eth_account fallback")
         log.info(f"  [BitGo] Setup: {bitgo_info.get('setup_note', '')[:80]}")
 
+    # ── Show Fileverse status ─────────────────────────────────────────────
+    fv_info = get_fileverse_status()
+    if fv_info.get("fileverse_enabled"):
+        log.info(f"  [Fileverse] Namespace: {fv_info.get('namespace', 'N/A')}")
+        log.info(f"  [Fileverse] Mode: live — dossiers upload to Fileverse")
+    else:
+        log.info(f"  [Fileverse] Mode: local_fallback — dossiers saved to {fv_info.get('dossier_dir', 'agent/dossiers/')}")
+
     # ── Show ENSIP-25 agent verification key (once per process) ──────────
     global _ensip25_logged
     if not _ensip25_logged:
@@ -528,6 +537,21 @@ def run_epoch() -> dict:
             log.info(f"Executing action {i+1}/{len(actions)}")
             action_result = run_reporter_phase(watcher, action)
             epoch_result["actions"].append(action_result)
+
+            # ── Fileverse: package compliance dossier after proof submission ──
+            if action_result.get("success"):
+                submit_step = next(
+                    (s for s in action_result.get("steps", []) if s.get("step") == "submit_report"),
+                    {},
+                )
+                fv_result = upload_compliance_dossier(
+                    epoch_number=epoch_number,
+                    action=action,
+                    reporter_result=action_result,
+                    watcher_data=watcher,
+                    submit_result=submit_step,
+                )
+                action_result["fileverse"] = fv_result
 
     except Exception as e:
         log.error(f"🚨 Epoch error: {e}", exc_info=True)
