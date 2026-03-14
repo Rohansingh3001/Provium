@@ -6,8 +6,12 @@ import { ReactQueryDevtools } from '@tanstack/react-query-devtools'
 import { RainbowKitProvider, darkTheme } from '@rainbow-me/rainbowkit'
 import { Toaster } from 'sonner'
 import { config } from '@/lib/wagmi'
+import { validateAddresses } from '@/lib/contracts'
 import { useState } from 'react'
 import '@rainbow-me/rainbowkit/styles.css'
+
+// Validate contract env vars once at module load — logs a clear warning if any are missing.
+validateAddresses()
 
 function makeQueryClient() {
     return new QueryClient({

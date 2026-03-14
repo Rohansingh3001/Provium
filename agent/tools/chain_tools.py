@@ -110,7 +110,8 @@ def get_all_positions() -> str:
 
         total_coll = lending.functions.getTotalCollateral().call()
         total_debt = lending.functions.getTotalDebt().call()
-        ratio_bps  = int(total_coll * WETH_PRICE_USDC * 1e6 * 10000 / (total_debt * 1e18)) if total_debt else 999999
+        # Integer arithmetic avoids float precision loss on large wei values.
+        ratio_bps  = (total_coll * WETH_PRICE_USDC * 10**6 * 10000) // (total_debt * 10**18) if total_debt else 999999
 
         result = json.dumps({
             "block": w3.eth.block_number,

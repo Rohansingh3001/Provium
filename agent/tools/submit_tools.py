@@ -4,14 +4,17 @@ fulfill requests in RegulatorPortal. Signs and sends real txns.
 """
 import json
 import os
+import logging
 from pathlib import Path
 from web3 import Web3
-from eth_account import Account
 from dotenv import load_dotenv
 from agno.tools import tool
 from tools.bitgo_tools import send_via_bitgo
+from tools.tx_utils import _get_account, _eip1559_params
 
 load_dotenv()
+
+log = logging.getLogger("zkcomply.submit")
 
 
 def _is_dry_run() -> bool:
@@ -19,7 +22,6 @@ def _is_dry_run() -> bool:
 
 
 RPC         = os.getenv("BASE_SEPOLIA_RPC", "https://sepolia.base.org")
-AGENT_KEY   = os.getenv("AGENT_PRIVATE_KEY", "")
 DEPLOYMENTS = Path(os.getenv("DEPLOYMENTS_PATH", "../contracts/deployments/base-sepolia.json"))
 
 w3 = Web3(Web3.HTTPProvider(RPC))
@@ -86,7 +88,11 @@ def _send_tx(fn, account) -> str:
     for _ in range(2):
         try:
             nonce = w3.eth.get_transaction_count(account.address, "pending")
-            tx = fn.build_transaction({"from": account.address, "nonce": nonce, "gasPrice": w3.eth.gas_price})
+            tx = fn.build_transaction({
+                "from":  account.address,
+                "nonce": nonce,
+                **_eip1559_params(w3),
+            })
             signed = account.sign_transaction(tx)
             h = w3.eth.send_raw_transaction(signed.raw_transaction).hex()
             w3.eth.wait_for_transaction_receipt(h, timeout=90)
@@ -122,21 +128,29 @@ def submit_proof_to_registry(
     if _is_dry_run():
         return json.dumps({"tx_hash": "0xDRY_RUN", "skipped": True})
     try:
-        account = Account.from_key(AGENT_KEY)
+        account = _get_account()
         proof_bytes = bytes.fromhex(proof_hex.replace("0x", "")) if proof_hex != "0x00" else b"\x00"
         public_inputs = [bytes.fromhex(x.replace("0x", "")).ljust(32, b"\x00")[:32] for x in json.loads(public_inputs_json)]
 
-        # Step 1: Verify proof on-chain (read call — free)
-        # If this fails, we do NOT fall back to the prover result — we record it honestly.
+        # Step 1: Verify proof on-chain (read call — free).
+        # Retry once on transient errors before recording as non-compliant.
         verified = False
         verify_error = None
-        try:
-            verified = verifier.functions.verify(proof_bytes, public_inputs).call()
-        except Exception as e:
-            verify_error = str(e)
-            # UltraVerifier is a placeholder (always returns true) or there's an ABI mismatch.
-            # Log it but do NOT silently claim verified=True.
-            verified = False
+        for attempt in range(2):
+            try:
+                verified = verifier.functions.verify(proof_bytes, public_inputs).call()
+                verify_error = None
+                break
+            except Exception as e:
+                verify_error = str(e)
+                if attempt == 0:
+                    log.warning(f"  [Verifier] Attempt 1 failed: {e} — retrying...")
+                else:
+                    log.error(
+                        f"  [Verifier] Both attempts failed: {e}. "
+                        "Recording as non-compliant to preserve honesty."
+                    )
+                    verified = False
 
         block_num  = w3.eth.block_number
 
@@ -183,7 +197,7 @@ def fulfill_regulator_request(
     if _is_dry_run():
         return json.dumps({"tx_hash": "0xDRY_RUN", "request_id": request_id, "skipped": True})
     try:
-        account = Account.from_key(AGENT_KEY)
+        account = _get_account()
         proof_bytes    = bytes.fromhex(proof_hex.replace("0x", ""))
         public_inputs  = [bytes.fromhex(x.replace("0x", "")).ljust(32, b"\x00")[:32] for x in json.loads(public_inputs_json)]
 

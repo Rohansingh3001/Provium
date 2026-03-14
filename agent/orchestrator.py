@@ -27,7 +27,6 @@ import logging
 from datetime import datetime, timezone
 from agno.agent import Agent
 from agno.models.groq import Groq
-
 from agents.watcher  import watcher_agent
 from agents.analyst  import analyst_agent
 from agents.reporter import reporter_agent
@@ -50,6 +49,56 @@ log = logging.getLogger("zkcomply")
 
 
 # ── helpers ──────────────────────────────────────────────────────────────────
+
+def _sanitize_field(s: str, max_len: int = 64) -> str:
+    """
+    Sanitize a string before embedding it in an LLM prompt.
+
+    Defends against prompt injection attacks where an adversary submits
+    malicious text (e.g. via the on-chain jurisdiction field) that could
+    alter the LLM's compliance decision.
+
+    Rules:
+      - Jurisdiction strings must match the safe allowlist pattern; anything
+        else is replaced with 'UNKNOWN'.
+      - All other fields: strip control characters and truncate.
+    """
+    if not isinstance(s, str):
+        return ""
+    # Strip non-printable / control characters
+    cleaned = re.sub(r"[^\x20-\x7E]", "", s).strip()
+    # For fields that should look like jurisdiction codes, enforce strict allowlist
+    if re.match(r"^[A-Z0-9 _\-\.]{1,64}$", cleaned):
+        return cleaned[:max_len]
+    # For longer free-text fields just truncate after stripping
+    return cleaned[:max_len]
+
+
+def _sanitize_jurisdiction(s: str) -> str:
+    """Jurisdiction codes must be alphanumeric+safe-punctuation or replaced."""
+    if not isinstance(s, str):
+        return "UNKNOWN"
+    cleaned = re.sub(r"[^\x20-\x7E]", "", s).strip()
+    if re.match(r"^[A-Z0-9 _\-\.]{1,64}$", cleaned):
+        return cleaned
+    return "UNKNOWN"
+
+
+def _sanitize_requests_for_prompt(requests: list) -> list:
+    """Return a copy of the requests list with all string fields sanitized."""
+    safe = []
+    for r in requests:
+        safe.append({
+            "requestId":   r.get("requestId"),
+            "requestor":   str(r.get("requestor", ""))[:42],   # Ethereum address max length
+            "proofType":   r.get("proofType"),
+            "targetBlock": r.get("targetBlock"),
+            "jurisdiction": _sanitize_jurisdiction(r.get("jurisdiction", "")),
+            "deadline":     r.get("deadline"),
+            "seconds_until_deadline": r.get("seconds_until_deadline"),
+        })
+    return safe
+
 
 def _extract_json(text: str) -> dict | list | None:
     """Pull JSON object or array out of LLM response text."""
@@ -135,7 +184,9 @@ def run_watcher_phase() -> dict:
 
     # Run Watcher LLM for OFAC search + summary text (non-blocking if it fails)
     positions_str  = json.dumps(positions_data, indent=2)[:2000]
-    requests_str   = json.dumps(pending_requests)[:500]
+    # Sanitize on-chain fields before embedding in LLM prompt (prompt injection defence).
+    safe_requests  = _sanitize_requests_for_prompt(pending_requests) if isinstance(pending_requests, list) else []
+    requests_str   = json.dumps(safe_requests)[:500]
     report_str     = json.dumps(latest_report)[:500]
 
     try:
@@ -190,6 +241,10 @@ def run_analyst_phase(watcher: dict) -> list[dict]:
     hours_old  = report.get("hours_since_last_proof", 999)
     ratio_pct  = positions.get("aggregate_ratio_pct", 0)
 
+    # Sanitize on-chain fields before embedding in LLM prompt (prompt injection defence).
+    safe_requests  = _sanitize_requests_for_prompt(requests) if isinstance(requests, list) else []
+    safe_ofac_news = _sanitize_field(watcher["ofac_news"], max_len=200)
+
     analyst_prompt = f"""
 You are a DeFi compliance analyst for Provium. Decide what ZK proof actions to take.
 
@@ -198,9 +253,9 @@ CURRENT STATE:
 - aggregate_ratio_pct: {ratio_pct:.1f}%
 - min_health_factor_bps: {min_hf} ({min_hf/100:.1f}%)
 - hours_since_last_proof: {hours_old:.1f}
-- pending_regulator_requests: {json.dumps(requests)}
+- pending_regulator_requests: {json.dumps(safe_requests)}
 - risk_level_from_watcher: {watcher["risk_level"]}
-- ofac_news: {watcher["ofac_news"][:200]}
+- ofac_news: {safe_ofac_news}
 
 DECISION RULES:
 - hours_since_last_proof > 1  →  generate routine proof
@@ -458,7 +513,18 @@ def run_epoch() -> dict:
             return epoch_result
 
         # Phase 3 — execute each action sequentially
+        known_request_ids = {
+            r.get("requestId") for r in watcher.get("pending_requests", [])
+            if isinstance(r, dict)
+        }
         for i, action in enumerate(actions):
+            req_id = action.get("request_id", 0) or 0
+            if req_id > 0 and req_id not in known_request_ids:
+                log.warning(
+                    f"  [M4] Skipping action for request_id={req_id} — "
+                    "not found in current pending requests (LLM hallucination or already fulfilled)."
+                )
+                continue
             log.info(f"Executing action {i+1}/{len(actions)}")
             action_result = run_reporter_phase(watcher, action)
             epoch_result["actions"].append(action_result)

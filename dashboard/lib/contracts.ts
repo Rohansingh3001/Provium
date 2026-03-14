@@ -2,15 +2,35 @@
 // Contract addresses are loaded from NEXT_PUBLIC_* env vars (.env.local).
 // All contracts are deployed on Base Sepolia (chain ID 84532).
 
+const ZERO_ADDRESS = '0x0000000000000000000000000000000000000000'
+
 export const ADDRESSES = {
-    LendingProtocol: (process.env.NEXT_PUBLIC_LENDING_PROTOCOL ||
-        '0x0000000000000000000000000000000000000000') as `0x${string}`,
-    RegulatorPortal: (process.env.NEXT_PUBLIC_REGULATOR_PORTAL ||
-        '0x0000000000000000000000000000000000000000') as `0x${string}`,
-    ComplianceRegistry: (process.env.NEXT_PUBLIC_COMPLIANCE_REGISTRY ||
-        '0x0000000000000000000000000000000000000000') as `0x${string}`,
-    UltraVerifier: (process.env.NEXT_PUBLIC_ULTRA_VERIFIER ||
-        '0x0000000000000000000000000000000000000000') as `0x${string}`,
+    LendingProtocol: (process.env.NEXT_PUBLIC_LENDING_PROTOCOL || ZERO_ADDRESS) as `0x${string}`,
+    RegulatorPortal: (process.env.NEXT_PUBLIC_REGULATOR_PORTAL || ZERO_ADDRESS) as `0x${string}`,
+    ComplianceRegistry: (process.env.NEXT_PUBLIC_COMPLIANCE_REGISTRY || ZERO_ADDRESS) as `0x${string}`,
+    UltraVerifier: (process.env.NEXT_PUBLIC_ULTRA_VERIFIER || ZERO_ADDRESS) as `0x${string}`,
+}
+
+/**
+ * Warn in development if any contract address is missing from .env.local.
+ * Call this once at app startup (e.g. in providers.tsx).
+ * Returns true if all addresses are configured, false otherwise.
+ */
+export function validateAddresses(): boolean {
+    const missing = Object.entries(ADDRESSES)
+        .filter(([, addr]) => addr === ZERO_ADDRESS)
+        .map(([name]) => `NEXT_PUBLIC_${name.replace(/([A-Z])/g, '_$1').toUpperCase().replace(/^_/, '')}`)
+
+    if (missing.length > 0) {
+        const msg = `[Provium] Missing contract address env vars — all reads will fail:\n  ${missing.join('\n  ')}\nAdd them to dashboard/.env.local`
+        if (process.env.NODE_ENV === 'development') {
+            console.warn(msg)
+        } else {
+            console.error(msg)
+        }
+        return false
+    }
+    return true
 }
 
 // ── LendingProtocol ABI ──────────────────────────────────────────────────
@@ -152,6 +172,18 @@ export const REGISTRY_ABI = [
         name: 'getAllReports',
         outputs: [
             { name: '', type: 'tuple[]', components: REPORT_COMPONENTS },
+        ],
+        stateMutability: 'view',
+        type: 'function',
+    },
+    {
+        inputs: [
+            { name: 'offset', type: 'uint256' },
+            { name: 'limit', type: 'uint256' },
+        ],
+        name: 'getReports',
+        outputs: [
+            { name: 'page', type: 'tuple[]', components: REPORT_COMPONENTS },
         ],
         stateMutability: 'view',
         type: 'function',
