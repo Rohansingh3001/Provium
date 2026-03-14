@@ -18,6 +18,47 @@ Provium now uses ENS in two layers:
 
 This makes ENS a live metadata registry for how the protocol should be understood and operated, not just a prettier address format.
 
+### ENSIP-25 — AI Agent Registry ENS Name Verification
+
+Provium implements [ENSIP-25](https://docs.ens.domains/ensip/25/) to cryptographically tie the compliance agent's ENS name to its on-chain registry entry in `ComplianceRegistry`.
+
+**What ENSIP-25 adds:**
+- The agent's ENS name (e.g. `provium-agent.eth`) sets a single text record:
+  ```
+  Key:   agent-registration[<erc7930_registry_address>][<agentId>]
+  Value: 1
+  ```
+- `<erc7930_registry_address>` is the ComplianceRegistry address on Base Sepolia, encoded as an [ERC-7930 interoperable address](https://github.com/ethereum/ercs/blob/master/ERCS/erc-7930.md):
+  ```
+  Format: 0x | 0001 (EIP-155 ns) | 0000 (reserved)
+             | <chainIdByteLen:1B> | <chainId↑big-endian>
+             | 0x14 (addrLen=20)  | <address:20B>
+  ```
+- Any dApp, protocol, or regulator resolves this record in one ENS lookup — no third-party trust, no API, just ENS.
+
+**Verification flow (ENSIP-25 §4.2):**
+1. Obtain the claimed ENS name + agentId + registry address from the ComplianceRegistry entry
+2. Build key: `agent-registration[<erc7930Registry>][<agentId>]`
+3. Resolve text record on the claimed ENS name (mainnet ENS resolver)
+4. Non-empty value → agent is verified ✓
+
+**Where it is implemented:**
+- `agent/tools/ensip25.py` — Python: ERC-7930 encoding, text key generation, setup CLI
+- `dashboard/lib/hooks/useEnsip25Verification.ts` — React: TypeScript ERC-7930 encoder + wagmi hook
+- `dashboard/components/Ensip25Badge.tsx` — UI: verification badge shown on the ENS/Tracks page
+- `dashboard/components/dashboard/EnsProfileCard.tsx` — integrated into the Agent Identity panel
+
+**At agent startup**, the orchestrator logs the exact text record to set:
+```
+[ENSIP-25] Agent verification text record for ENS:
+  ENS name  : provium-agent.eth
+  Key       : agent-registration[0x00010000...14<registryAddr>][1]
+  Value     : 1
+```
+
+**Why this matters for BitGo:**
+ENSIP-25 gives the BitGo-secured execution flow an identity layer. Any protocol interacting with the agent via BitGo can verify the agent's ENS name before trusting the proof submission — combining enterprise-grade wallet security with ENS-backed identity.
+
 ### Suggested ENS setup
 
 - `provium.eth` → protocol profile

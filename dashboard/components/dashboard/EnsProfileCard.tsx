@@ -2,6 +2,7 @@
 
 import { Card } from '@/components/ui/Card'
 import { EnsAddress } from '@/components/EnsAddress'
+import { Ensip25Badge } from '@/components/Ensip25Badge'
 import { useEnsAddress, useEnsText } from 'wagmi'
 import { mainnet } from 'wagmi/chains'
 
@@ -78,8 +79,11 @@ function EnsTextRow({
 }
 
 export function EnsProfileCard() {
-    const protocolName = process.env.NEXT_PUBLIC_ENS_PROTOCOL_NAME || ''
-    const agentName = process.env.NEXT_PUBLIC_ENS_AGENT_NAME || ''
+    const protocolName  = process.env.NEXT_PUBLIC_ENS_PROTOCOL_NAME || ''
+    const agentName     = process.env.NEXT_PUBLIC_ENS_AGENT_NAME    || ''
+    // ComplianceRegistry address for ENSIP-25 ERC-7930 encoding
+    const registryAddr  = process.env.NEXT_PUBLIC_COMPLIANCE_REGISTRY || ''
+    const ensip25AgentId = process.env.NEXT_PUBLIC_ENSIP25_AGENT_ID  || '1'
 
     const { data: protocolAddress } = useEnsAddress({
         name: protocolName || undefined,
@@ -168,6 +172,27 @@ export function EnsProfileCard() {
                         <EnsTextRow name={agentName} label="Role" recordKey="provium.role" />
                         <EnsTextRow name={agentName} label="Proof mode" recordKey="provium.proofMode" />
                         <EnsTextRow name={agentName} label="BitGo rail" recordKey="provium.bitgoRail" />
+
+                        {/* ── ENSIP-25 Agent Verification ── */}
+                        <div style={{ paddingTop: 14, borderTop: '1px dashed #D9D2BE', marginTop: 4 }}>
+                            <div style={{
+                                fontSize: 10,
+                                fontWeight: 900,
+                                letterSpacing: '1.5px',
+                                textTransform: 'uppercase',
+                                color: '#6B6B6B',
+                                marginBottom: 10,
+                            }}>
+                                ENSIP-25 Verification
+                            </div>
+                            <Ensip25Badge
+                                ensName={agentName || undefined}
+                                registryAddress={registryAddr}
+                                agentId={ensip25AgentId}
+                                registryChainId={84532}
+                                showKey
+                            />
+                        </div>
                     </div>
                 </div>
             </div>

@@ -39,6 +39,7 @@ from tools.chain_tools import (
 from tools.proof_tools  import build_merkle_tree_and_inputs, commit_merkle_root, generate_zk_proof
 from tools.submit_tools import submit_proof_to_registry, fulfill_regulator_request
 from tools.bitgo_tools import get_bitgo_wallet_info
+from tools.ensip25 import log_ensip25_setup
 
 logging.basicConfig(
     level=logging.INFO,
@@ -403,6 +404,10 @@ def _get_epoch_number() -> int:
     return int(time.time()) & 0xFFFFFF  # Just a pseudo-unique number
 
 
+# Flag: ENSIP-25 setup logged only once per process lifetime
+_ensip25_logged = False
+
+
 
 # ── Epoch Runner ──────────────────────────────────────────────────────────────
 def run_epoch() -> dict:
@@ -424,6 +429,12 @@ def run_epoch() -> dict:
     else:
         log.info("  [BitGo] Not configured — using eth_account fallback")
         log.info(f"  [BitGo] Setup: {bitgo_info.get('setup_note', '')[:80]}")
+
+    # ── Show ENSIP-25 agent verification key (once per process) ──────────
+    global _ensip25_logged
+    if not _ensip25_logged:
+        log_ensip25_setup()
+        _ensip25_logged = True
 
     epoch_result = {"timestamp": datetime.now(timezone.utc).isoformat(), "epoch": epoch_number, "actions": []}
 
