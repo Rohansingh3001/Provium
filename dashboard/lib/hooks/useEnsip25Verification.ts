@@ -27,7 +27,12 @@
 'use client'
 
 import { useEnsText } from 'wagmi'
-import { mainnet } from 'wagmi/chains'
+import { mainnet, sepolia } from 'wagmi/chains'
+
+// Resolve ENS on Sepolia for testnet demos, mainnet for production.
+// Toggle via NEXT_PUBLIC_ENS_CHAIN env var (default: sepolia for hackathon).
+const ENS_CHAIN_ID =
+    process.env.NEXT_PUBLIC_ENS_CHAIN === 'mainnet' ? mainnet.id : sepolia.id
 
 // ── ERC-7930 encoding ──────────────────────────────────────────────────────
 
@@ -141,7 +146,7 @@ export function useEnsip25Verification({
     } = useEnsText({
         name: ensName ?? undefined,
         key: textKey,
-        chainId: mainnet.id,   // ENS always resolves on mainnet
+        chainId: ENS_CHAIN_ID,   // Sepolia (testnet) or mainnet depending on env
         query: {
             enabled: !!ensName && !!textKey && !buildError,
         },

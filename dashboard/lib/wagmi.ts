@@ -1,17 +1,18 @@
 import { getDefaultConfig } from '@rainbow-me/rainbowkit'
 import { http } from 'wagmi'
-import { baseSepolia, mainnet } from 'wagmi/chains'
+import { baseSepolia, mainnet, sepolia } from 'wagmi/chains'
 
 export const config = getDefaultConfig({
     appName: 'Provium',
     projectId: '4c8bbf33e89fb23d069b8214f4b2fd70', // Public generic WC project ID for hackathons
-    chains: [baseSepolia, mainnet],
+    chains: [baseSepolia, mainnet, sepolia],
     ssr: true,
     transports: {
         [baseSepolia.id]: http(
             process.env.NEXT_PUBLIC_BASE_SEPOLIA_RPC || 'https://sepolia.base.org'
         ),
-        [mainnet.id]: http(), // ENS resolution
+        [mainnet.id]: http(), // ENS resolution (mainnet)
+        [sepolia.id]: http(), // ENS resolution (Sepolia testnet)
     },
 })
 
