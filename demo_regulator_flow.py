@@ -309,4 +309,23 @@ if __name__ == "__main__":
     print("  Demo complete. Regulator request fulfilled on-chain.")
     print("  Agent reasoning is permanently stored in the transaction.")
     print("=" * 60)
+
+    # ── Fileverse dossier info ────────────────────────────────────────────
+    try:
+        from tools.fileverse_tools import get_fileverse_status, DOSSIER_DIR
+        fv = get_fileverse_status()
+        if fv.get("fileverse_enabled"):
+            print(f"\n  [Fileverse] Compliance dossier uploaded to namespace: {fv['namespace']}")
+            print(f"  [Fileverse] Regulators can access the full evidence packet via Fileverse portal.")
+        else:
+            dossier_files = sorted(DOSSIER_DIR.glob("dossier_*.json")) if DOSSIER_DIR.exists() else []
+            if dossier_files:
+                latest = dossier_files[-1]
+                print(f"\n  [Fileverse] Local dossier saved: {latest.name}")
+                print(f"  [Fileverse] Path: {latest}")
+            else:
+                print(f"\n  [Fileverse] No dossier generated (run via agent for automatic dossier packaging)")
+    except ImportError:
+        pass  # Fileverse tools not available in this context
+
     print()

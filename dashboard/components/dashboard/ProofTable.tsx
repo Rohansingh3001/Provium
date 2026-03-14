@@ -6,9 +6,18 @@ import { Button } from '@/components/ui/Button'
 import { Badge } from '@/components/ui/Badge'
 import { formatBps, truncateHash, triggerBadgeVariant, triggerLabel, formatBlock } from '@/lib/utils'
 import { getExplorerTxUrl, getExplorerBlockUrl } from '@/lib/wagmi'
-import { X } from 'lucide-react'
+import { X, FileText } from 'lucide-react'
 
 type FilterType = 'all' | 'routine' | 'violations' | 'regulator'
+
+const FILEVERSE_ENABLED = process.env.NEXT_PUBLIC_FILEVERSE_ENABLED === 'true'
+const FILEVERSE_NAMESPACE = process.env.NEXT_PUBLIC_FILEVERSE_NAMESPACE || ''
+
+function getDossierUrl(reportId: number): string | null {
+    if (!FILEVERSE_ENABLED || !FILEVERSE_NAMESPACE) return null
+    return `https://portal.fileverse.io/#/ns/${FILEVERSE_NAMESPACE}?search=epoch-${reportId}`
+}
+
 
 export function ProofTable() {
     const { reports, isLoading } = useProofHistory()
@@ -97,6 +106,7 @@ export function ProofTable() {
                                 <th className="px-5 py-4 font-black mono text-xs tracking-widest text-[rgba(255,255,255,0.5)]">TRIGGER</th>
                                 <th className="px-5 py-4 font-black mono text-xs tracking-widest text-[rgba(255,255,255,0.5)]">AGENT REASONING</th>
                                 <th className="px-5 py-4 font-black mono text-xs tracking-widest text-[rgba(255,255,255,0.5)]">TX HASH</th>
+                                <th className="px-5 py-4 font-black mono text-xs tracking-widest text-[rgba(255,255,255,0.5)]">DOSSIER</th>
                             </tr>
                         </thead>
 
@@ -104,13 +114,13 @@ export function ProofTable() {
                         <tbody>
                             {isLoading ? (
                                 <tr>
-                                    <td colSpan={7} style={{ padding: 40, textAlign: 'center', color: '#6B6B6B' }}>
+                                    <td colSpan={8} style={{ padding: 40, textAlign: 'center', color: '#6B6B6B' }}>
                                         Fetching chain data...
                                     </td>
                                 </tr>
                             ) : currentItems.length === 0 ? (
                                 <tr>
-                                    <td colSpan={7} style={{ padding: 40, textAlign: 'center', color: '#6B6B6B' }}>
+                                    <td colSpan={8} style={{ padding: 40, textAlign: 'center', color: '#6B6B6B' }}>
                                         No proofs found for this filter.
                                     </td>
                                 </tr>
@@ -222,6 +232,54 @@ export function ProofTable() {
                                             >
                                                 {truncateHash(r.proofHash, 6)} ↗
                                             </a>
+                                        </td>
+
+                                        {/* Dossier */}
+                                        <td style={{ padding: '12px 20px' }}>
+                                            {(() => {
+                                                const url = getDossierUrl(Number(r.reportId))
+                                                if (!url) return (
+                                                    <span style={{
+                                                        fontSize: 11,
+                                                        color: '#B0B0B0',
+                                                        fontWeight: 500,
+                                                    }}>
+                                                        —
+                                                    </span>
+                                                )
+                                                return (
+                                                    <a
+                                                        href={url}
+                                                        target="_blank"
+                                                        rel="noreferrer"
+                                                        style={{
+                                                            display: 'inline-flex',
+                                                            alignItems: 'center',
+                                                            gap: 4,
+                                                            fontSize: 11,
+                                                            fontWeight: 700,
+                                                            color: '#7C3AED',
+                                                            textDecoration: 'none',
+                                                            background: '#F3EEFF',
+                                                            border: '1.5px solid #7C3AED',
+                                                            borderRadius: 6,
+                                                            padding: '3px 8px',
+                                                            transition: 'all 0.15s',
+                                                        }}
+                                                        onMouseEnter={(e) => {
+                                                            (e.currentTarget as HTMLAnchorElement).style.background = '#7C3AED';
+                                                            (e.currentTarget as HTMLAnchorElement).style.color = '#FFFFFF';
+                                                        }}
+                                                        onMouseLeave={(e) => {
+                                                            (e.currentTarget as HTMLAnchorElement).style.background = '#F3EEFF';
+                                                            (e.currentTarget as HTMLAnchorElement).style.color = '#7C3AED';
+                                                        }}
+                                                    >
+                                                        <FileText size={12} />
+                                                        View
+                                                    </a>
+                                                )
+                                            })()}
                                         </td>
                                     </tr>
                                 ))
