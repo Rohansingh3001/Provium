@@ -20,6 +20,7 @@ venv/
 agent/venv/
 agent/.cache/
 agent/logs/
+agent/dossiers/
 
 # Node / Next
 node_modules/
@@ -27,6 +28,7 @@ node_modules/
 out/
 coverage/
 *.tsbuildinfo
+package-lock.json
 
 # Build artifacts
 build/
