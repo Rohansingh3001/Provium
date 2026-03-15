@@ -47,6 +47,7 @@ BITGO_WALLET_ID    = os.getenv("BITGO_WALLET_ID", "")
 BITGO_WALLET_PASSPHRASE = os.getenv("BITGO_WALLET_PASSPHRASE", "")
 BITGO_ENV          = os.getenv("BITGO_ENV", "test")   # "test" or "prod"
 BITGO_COIN         = os.getenv("BITGO_COIN", "tbaseeth")   # Base Sepolia testnet
+BITGO_MOCK         = os.getenv("BITGO_MOCK", "").lower() in ("1", "true", "yes")
 
 BITGO_BASE_URL = (
     "https://app.bitgo-test.com/api/v2"
@@ -54,7 +55,72 @@ BITGO_BASE_URL = (
     else "https://app.bitgo.com/api/v2"
 )
 
-BITGO_ENABLED = bool(BITGO_ACCESS_TOKEN and BITGO_WALLET_ID)
+BITGO_ENABLED = bool(BITGO_ACCESS_TOKEN and BITGO_WALLET_ID) or BITGO_MOCK
+
+
+# ── Mock client for demo/testing without live credentials ─────────────────────
+
+class BitGoMockClient:
+    """
+    Returns realistic BitGo-shaped responses without hitting the API.
+    Activated via BITGO_MOCK=true in .env.
+    """
+
+    def __init__(self):
+        import hashlib, time
+        self.coin = BITGO_COIN
+        self.wallet_id = BITGO_WALLET_ID or "663f1a2b4e5d6c7890abcdef12345678"
+        self._mock_address = os.getenv("AGENT_WALLET_ADDRESS", "0xd707187453D29b8b3b017A02e4E6d6f6E5222017")
+        self._counter = int(time.time())
+
+    def _mock_txid(self) -> str:
+        import hashlib, time
+        self._counter += 1
+        return "0x" + hashlib.sha256(f"bitgo-mock-{self._counter}".encode()).hexdigest()
+
+    def get_wallet(self) -> dict:
+        return {
+            "id": self.wallet_id,
+            "coin": self.coin,
+            "label": "Provium Compliance Wallet (mock)",
+            "balanceString": "50000000000000000",  # 0.05 ETH
+            "confirmedBalanceString": "50000000000000000",
+            "receiveAddress": {"address": self._mock_address},
+            "multisigType": "tss",
+            "keys": ["user-key-abc", "bitgo-key-def", "backup-key-ghi"],
+            "enterprise": "provium-enterprise",
+        }
+
+    def get_wallet_address(self) -> str:
+        return self._mock_address
+
+    def send_transaction(self, recipient_address, amount_wei, data_hex, otp="") -> dict:
+        txid = self._mock_txid()
+        log.info(f"  [BitGo] MOCK: Sending tx to {recipient_address[:20]}... via multi-sig wallet")
+        log.info(f"  [BitGo] MOCK: ✓ Tx broadcast: {txid[:20]}...")
+        return {
+            "txid": txid,
+            "status": "signed",
+            "type": "send",
+            "coin": self.coin,
+            "walletId": self.wallet_id,
+            "comment": "Provium ZK compliance proof submission (BitGo secured)",
+            "transfer": {"txid": txid, "state": "signed"},
+        }
+
+    def get_transfer_history(self, limit=10) -> list:
+        txid = self._mock_txid()
+        return [{
+            "id": txid,
+            "coin": self.coin,
+            "type": "send",
+            "state": "confirmed",
+            "comment": "Provium ZK compliance proof submission (BitGo secured)",
+            "value": "0",
+        }]
+
+    def build_evm_calldata(self, fn_selector, encoded_args):
+        return "0x" + fn_selector + encoded_args
 
 
 # ── BitGo REST API client ──────────────────────────────────────────────────────
@@ -153,13 +219,17 @@ class BitGoClient:
 _bitgo_client: BitGoClient | None = None
 
 
-def get_bitgo_client() -> BitGoClient | None:
+def get_bitgo_client() -> BitGoClient | BitGoMockClient | None:
     """Get the BitGo client if configured, else None."""
     global _bitgo_client
     if not BITGO_ENABLED:
         return None
     if _bitgo_client is None:
-        _bitgo_client = BitGoClient()
+        if BITGO_MOCK:
+            log.info("  [BitGo] Using MOCK client (BITGO_MOCK=true)")
+            _bitgo_client = BitGoMockClient()
+        else:
+            _bitgo_client = BitGoClient()
     return _bitgo_client
 
 

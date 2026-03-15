@@ -2,7 +2,7 @@
 'use client'
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
-import { LayoutDashboard, FileCheck, Scale, AlertTriangle, BookOpen, Trophy } from 'lucide-react'
+import { LayoutDashboard, FileCheck, Scale, AlertTriangle, BookOpen } from 'lucide-react'
 import { BASE_SEPOLIA_EXPLORER } from '@/lib/wagmi'
 import Image from 'next/image'
 import { PulsingDot } from '@/components/ui/PulsingDot'
@@ -14,7 +14,6 @@ const navigation = [
     { name: 'Proof History', href: '/dashboard/proofs', icon: FileCheck },
     { name: 'Regulator Portal', href: '/dashboard/regulator', icon: Scale },
     { name: 'Simulate', href: '/dashboard/simulate', icon: AlertTriangle },
-    { name: 'Bounty Tracks', href: '/dashboard/tracks', icon: Trophy },
     { name: 'Help & Docs', href: '/dashboard/docs', icon: BookOpen },
 ]
 

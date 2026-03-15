@@ -81,8 +81,12 @@ def _send_tx(fn, account) -> str:
     bitgo_result = send_via_bitgo(fn.address, calldata)
     if bitgo_result and bitgo_result.get("txid"):
         tx_hash = str(bitgo_result["txid"])
-        receipt = w3.eth.wait_for_transaction_receipt(tx_hash, timeout=180)
-        return receipt["transactionHash"].hex()
+        # In mock mode the txid is fake — fall through to eth_account for real broadcast
+        from tools.bitgo_tools import BITGO_MOCK
+        if not BITGO_MOCK:
+            receipt = w3.eth.wait_for_transaction_receipt(tx_hash, timeout=180)
+            return receipt["transactionHash"].hex()
+        # else: mock mode — BitGo signed (logged), now broadcast via eth_account
 
     last_error = None
     for _ in range(2):
