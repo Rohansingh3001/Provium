@@ -9,7 +9,7 @@ import { EnsAddress } from '@/components/EnsAddress'
 export function AgentStatusCard() {
     const { secondsSinceLastProof, latestReport, reportCount, isLoading } = useComplianceStatus()
 
-    // Active = proof submitted in last 10 min (gives room for 60-90s proof gen + 2min interval)
+    // Active = proof submitted in last 10 min (gives room for 60-90s proof gen + 60s interval)
     // No reports yet = "Awaiting" (not "Paused" — agent may not have run)
     const hasReports = reportCount > 0
     const isActive = hasReports && secondsSinceLastProof < 600 // 10 min

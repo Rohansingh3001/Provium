@@ -62,7 +62,7 @@ export function RegulatorPreview() {
                         Regulator Portal
                     </div>
                     <h2 className="section-title" style={{ marginBottom: 20 }}>
-                        Submit once.<br />Get proof in 60 seconds.
+                        Submit once.<br />Get proof within one epoch.
                     </h2>
                     <p
                         style={{
@@ -72,9 +72,9 @@ export function RegulatorPreview() {
                             marginBottom: 32,
                         }}
                     >
-                        Any regulator submits an on-chain compliance request. The agent
-                        detects it automatically and fulfills it within one epoch — complete
-                        with a real ZK proof and LLM-generated reasoning stored permanently
+                        Any user submits an on-chain compliance request. The agent detects it on its
+                        next 60-second cycle and fulfills it within the 30-minute on-chain deadline —
+                        complete with a real ZK proof and LLM-generated reasoning stored permanently
                         on-chain.
                     </p>
 
@@ -218,8 +218,8 @@ export function RegulatorPreview() {
                                     margin: 0,
                                 }}
                             >
-                                &quot;Routine collateral ratio proof for US-GENIUS-ACT jurisdiction.
-                                All 5 positions verified above 150% minimum threshold. Lowest
+                                &quot;Routine collateral ratio proof for US-GENIUS-ACT jurisdiction (demo label).
+                                All 5 positions verified above 150% protocol minimum. Lowest
                                 position at 163% collateral ratio. Aggregate: 342 ETH
                                 collateral, 200,000 USDC debt. Protocol ratio: 171%. No
                                 violations detected at block #18,294,847.&quot;

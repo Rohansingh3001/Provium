@@ -183,7 +183,7 @@ def run_watcher_phase() -> dict:
     log.info(f"  Hours since last proof: {latest_report.get('hours_since_last_proof', '?')}")
     log.info(f"  Pending regulator requests: {len(pending_requests) if isinstance(pending_requests, list) else '?'}")
 
-    # Run Watcher LLM for OFAC search + summary text (non-blocking if it fails)
+    # Run Watcher LLM for risk summary (non-blocking if it fails)
     positions_str  = json.dumps(positions_data, indent=2)[:2000]
     # Sanitize on-chain fields before embedding in LLM prompt (prompt injection defence).
     safe_requests  = _sanitize_requests_for_prompt(pending_requests) if isinstance(pending_requests, list) else []
@@ -200,19 +200,17 @@ LATEST REPORT: {report_str}
 
 Your tasks:
 1. Assess the protocol risk level from this on-chain state.
-2. If sanctions/news context is not present in the prompt, set ofac_news to "No external sanctions feed provided".
-3. Write a short professional summary for the Analyst.
+2. Write a short professional summary for the Analyst.
 
 Respond with JSON only:
-{{"risk_level": "low|medium|high|critical", "ofac_news": "<summarise what you found — or 'No new OFAC updates found' if the search returned nothing relevant>", "summary": "<2-3 sentence professional risk assessment>"}}
+{{"risk_level": "low|medium|high|critical", "summary": "<2-3 sentence professional risk assessment>"}}
 """
         watcher_text = _agent_response_text(watcher_agent, watcher_prompt)
         watcher_json = _extract_json(watcher_text) or {}
         log.info(f"  Risk level: {watcher_json.get('risk_level', 'unknown')}")
-        log.info(f"  OFAC: {watcher_json.get('ofac_news', 'N/A')[:80]}")
     except Exception as e:
         log.warning(f"  Watcher LLM failed (non-critical): {e}")
-        watcher_json = {"risk_level": "low", "ofac_news": "Could not fetch.", "summary": ""}
+        watcher_json = {"risk_level": "low", "summary": ""}
 
     return {
         "positions_data":   positions_data,
@@ -220,7 +218,6 @@ Respond with JSON only:
         "pending_requests": pending_requests if isinstance(pending_requests, list) else [],
         "latest_report":    latest_report,
         "risk_level":       watcher_json.get("risk_level", "low"),
-        "ofac_news":        watcher_json.get("ofac_news", ""),
         "watcher_summary":  watcher_json.get("summary", ""),
     }
 
@@ -244,7 +241,6 @@ def run_analyst_phase(watcher: dict) -> list[dict]:
 
     # Sanitize on-chain fields before embedding in LLM prompt (prompt injection defence).
     safe_requests  = _sanitize_requests_for_prompt(requests) if isinstance(requests, list) else []
-    safe_ofac_news = _sanitize_field(watcher["ofac_news"], max_len=200)
 
     analyst_prompt = f"""
 You are a DeFi compliance analyst for Provium. Decide what ZK proof actions to take.
@@ -256,7 +252,6 @@ CURRENT STATE:
 - hours_since_last_proof: {hours_old:.1f}
 - pending_regulator_requests: {json.dumps(safe_requests)}
 - risk_level_from_watcher: {watcher["risk_level"]}
-- ofac_news: {safe_ofac_news}
 
 DECISION RULES:
 - hours_since_last_proof > 1  →  generate routine proof
@@ -267,8 +262,7 @@ DECISION RULES:
 IMPORTANT: For each action write an "agent_reasoning" string that will be stored
 PERMANENTLY ON THE BLOCKCHAIN. Be professional, specific, mention actual numbers.
 Example: "All 5 positions are above 150% threshold. Minimum health factor is 163%.
-Generating routine epoch proof for block #8294801 per GENIUS Act requirements.
-No new OFAC sanctions detected in last 24h. Protocol is compliant."
+Generating routine epoch proof for block #8294801. Protocol is compliant."
 
 Return ONLY a JSON array (no other text):
 [
@@ -318,7 +312,7 @@ Return ONLY a JSON array (no other text):
                 f"Aggregate ratio {ratio_pct:.1f}%. "
                 f"Last proof {hours_old:.1f}h ago. "
                 f"Generating {'URGENT' if trigger else 'routine'} collateral ratio proof "
-                f"per US-GENIUS-ACT requirements."
+                f"for jurisdiction US-GENIUS-ACT (demo label)."
             ),
             "request_id": 0,
             "trigger": trigger,
@@ -332,7 +326,7 @@ Return ONLY a JSON array (no other text):
                 f"from {req.get('requestor', '0x?')[:10]}... "
                 f"Jurisdiction: {req.get('jurisdiction', 'UNKNOWN')}. "
                 f"Target block #{req.get('targetBlock')}. "
-                f"Deadline in {req.get('seconds_until_deadline', 0)//3600}h. "
+                f"Deadline in {req.get('seconds_until_deadline', 0)//60}m. "
                 f"Protocol ratio {ratio_pct:.1f}% — "
                 f"{'COMPLIANT' if min_hf >= 15000 else 'NON-COMPLIANT'}."
             ),

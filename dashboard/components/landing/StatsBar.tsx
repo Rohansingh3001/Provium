@@ -2,10 +2,10 @@
 'use client'
 
 const stats = [
-    { value: '$750K', label: 'ShapeShift OFAC fine, 2025' },
-    { value: '150%', label: 'GENIUS Act minimum collateral ratio' },
-    { value: '60s', label: 'Max time to fulfill compliance request' },
-    { value: '0', label: 'User positions revealed to regulators' },
+    { value: '$750K', label: 'ShapeShift OFAC settlement, Sept 2025' },
+    { value: '150%', label: 'Protocol collateral minimum (configurable)' },
+    { value: '60s', label: 'Default agent epoch interval' },
+    { value: '0', label: 'Individual positions revealed in proofs' },
 ]
 
 export function StatsBar() {

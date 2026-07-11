@@ -169,7 +169,7 @@ export default function DocsPage() {
                     <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 10 }} className="docs-3col">
                         {[
                             { icon: Eye, label: 'Privacy', text: 'Individual positions are never exposed. Only the aggregate proof is public.' },
-                            { icon: Zap, label: 'Autonomous', text: 'The AI agent runs every 2 minutes with no human intervention needed.' },
+                            { icon: Zap, label: 'Autonomous', text: 'The AI agent runs every 60 seconds by default with no human intervention needed.' },
                             { icon: Shield, label: 'Verifiable', text: 'Every proof is stored on Base Sepolia forever. Anyone can verify it.' },
                         ].map(({ icon: Icon, label, text }) => (
                             <div key={label} style={{
@@ -202,7 +202,7 @@ export default function DocsPage() {
                     <StepCard
                         number={2}
                         title="Compliance Score"
-                        description="Shows the live collateral ratio of the entire protocol (total collateral ÷ total debt). The GENIUS Act minimum is 150%. Green means compliant, red means violation. The bar updates every 30 seconds from on-chain data."
+                        description="Shows the live collateral ratio of the entire protocol (total collateral ÷ total debt). The protocol minimum is 150% (set in LendingProtocol.sol). Green means compliant, red means violation. The bar updates every 30 seconds from on-chain data."
                     />
                     <StepCard
                         number={3}
@@ -264,7 +264,7 @@ export default function DocsPage() {
                     <StepCard
                         number={3}
                         title="Wait for fulfillment"
-                        description="Your request is written on-chain with a 10-minute deadline. The AI agent picks it up on its next cycle (up to 2 minutes) and generates a proof specifically for your request. The proof appears in Proof History linked to your request ID."
+                        description="Your request is written on-chain with a 30-minute deadline. The AI agent picks it up on its next cycle (up to 60 seconds) and generates a proof specifically for your request. The proof appears in Proof History linked to your request ID."
                     />
                     <StepCard
                         number={4}
@@ -299,7 +299,7 @@ export default function DocsPage() {
                     <StepCard
                         number={4}
                         title="Watch the agent respond"
-                        description='Go to Overview → Agent Activity. Within 2 minutes the agent detects the health factor drop, generates an URGENT or CRITICAL proof, and submits it. The proof appears in Proof History with "isCompliant: false" and a red VIOLATION badge.'
+                        description='Go to Overview → Agent Activity. Within about 60 seconds the agent detects the health factor drop, generates an URGENT or CRITICAL proof, and submits it. The proof appears in Proof History with "isCompliant: false" and a red VIOLATION badge.'
                     />
                     <HighlightBox color="#FF3B30">
                         <strong>This is testnet only.</strong> You are triggering a violation on a test protocol. No real funds are involved. The violation is permanent on-chain but only affects Base Sepolia testnet data.
@@ -321,7 +321,7 @@ export default function DocsPage() {
                     },
                     {
                         q: "What does \"collateral ratio\" mean?",
-                        a: "It's the ratio of total collateral (WETH deposited) to total debt (USDC borrowed), expressed as a percentage. 150% means for every $100 borrowed, there is $150 in collateral backing it. The GENIUS Act requires a minimum of 150%. Below that is a violation.",
+                        a: "It's the ratio of total collateral (WETH deposited) to total debt (USDC borrowed), expressed as a percentage. 150% means for every $100 borrowed, there is $150 in collateral backing it. This demo protocol enforces a 150% minimum — below that is a violation.",
                     },
                     {
                         q: "Agent Status shows PAUSED — is something broken?",
@@ -345,8 +345,8 @@ export default function DocsPage() {
                         </div>
                     },
                     {
-                        q: "My regulator request has been pending for more than 10 minutes — what happened?",
-                        a: "Each request has a 10-minute deadline. If the agent didn't run before the deadline expired, the request is marked expired and will not be fulfilled. Submit a new request. Once submitted, the agent typically fulfills it within 2 minutes if it is running.",
+                        q: "My regulator request has been pending for more than 30 minutes — what happened?",
+                        a: "Each request has a 30-minute deadline (set in RegulatorPortal.sol). If the agent didn't run before the deadline expired, the request is marked expired and will not be fulfilled. Submit a new request. Once submitted, the agent typically fulfills it within one 60-second epoch if it is running.",
                     },
                     {
                         q: "Can I verify a proof myself?",

@@ -1,10 +1,10 @@
 # Provium — Autonomous ZK Compliance for DeFi
 
-> **Zero-knowledge proof of solvency, submitted on-chain by an autonomous AI agent, verified by regulators in real time.**
+> **Zero-knowledge proof of lending solvency, submitted on-chain by an autonomous AI agent, verifiable by anyone.**
 
-Provium is an end-to-end compliance infrastructure for DeFi lending protocols. An autonomous agent monitors protocol positions, generates ZK proofs that collateral ratios exceed regulatory thresholds (without revealing individual positions), and submits verifiable reports on-chain — all while regulators can request ad-hoc compliance audits through an on-chain portal.
+Provium is an end-to-end compliance infrastructure for DeFi lending protocols. An autonomous agent monitors protocol positions, generates ZK proofs that each position meets a configurable collateral threshold (without revealing individual balances), and submits verifiable reports on-chain — while regulators can request ad-hoc compliance audits through an on-chain portal.
 
-Built for the **US GENIUS Act** stablecoin reserve-proof framework on **Base Sepolia**.
+Inspired by the transparency goals of the **US GENIUS Act** (1:1 reserve attestation for stablecoin issuers). Deployed on **Base Sepolia** as a DeFi lending collateral-ratio demo.
 
 ---
 

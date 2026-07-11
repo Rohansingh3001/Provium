@@ -4,18 +4,18 @@
 const cells = [
     {
         number: '$750K',
-        title: 'ShapeShift Fine · 2025',
-        desc: 'OFAC fined ShapeShift for failing to block sanctioned wallets. Not criminals — just unable to prove compliance without exposing users.',
+        title: 'ShapeShift Settlement · 2025',
+        desc: 'OFAC fined ShapeShift $750K for processing 17,183 transactions with users in sanctioned jurisdictions (2016–2018). Regulators expect provable, auditable compliance — not trust-me spreadsheets.',
     },
     {
-        number: '12/wk',
-        title: 'New OFAC SDN Additions',
-        desc: 'OFAC adds 12 new crypto addresses to their sanctions list every week. Your agent monitors and reacts within 60 seconds of any update.',
+        number: '1:1',
+        title: 'GENIUS Act Reserve Standard',
+        desc: 'The GENIUS Act requires stablecoin issuers to maintain 1:1 reserve backing with monthly public attestations. Continuous, verifiable proof is becoming the regulatory baseline.',
     },
     {
-        number: '1st',
-        title: 'AI Reasoning Tied to ZK Proof On-Chain',
-        desc: 'Existing ZK identity tools prove who users are. Provium proves protocol-level compliance — and stores the AI\'s reasoning permanently on-chain alongside the proof.',
+        number: 'ZK',
+        title: 'Privacy-Preserving Attestation',
+        desc: 'Traditional audits expose every position. Provium proves protocol-level solvency with Noir ZK circuits and stores the agent\'s reasoning permanently on-chain alongside each proof.',
     },
 ]
 

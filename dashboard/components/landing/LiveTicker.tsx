@@ -5,11 +5,11 @@ import { PulsingDot } from '@/components/ui/PulsingDot'
 const ITEMS = [
     { prefix: '✓', text: ' Collateral proof · block ', highlight: '#18,294,847', suffix: ' · ratio ', hl2: '171%', rest: ' · 23s ago' },
     { prefix: '✓', text: ' Request #14 fulfilled · ', highlight: 'compliance.eth', suffix: ' · 4min ago', hl2: '', rest: '' },
-    { prefix: '✓', text: ' All 5 positions above ', highlight: '150%', suffix: ' minimum threshold', hl2: '', rest: '' },
+    { prefix: '✓', text: ' All 5 positions above ', highlight: '150%', suffix: ' protocol minimum', hl2: '', rest: '' },
     { prefix: '✓', text: ' Agent reasoning stored on-chain · tx ', highlight: '0x4f2a...8c3b', suffix: ' ↗', hl2: '', rest: '' },
     { prefix: '✓', text: ' Collateral proof · block ', highlight: '#18,294,847', suffix: ' · ratio ', hl2: '171%', rest: ' · 23s ago' },
     { prefix: '✓', text: ' Request #14 fulfilled · ', highlight: 'compliance.eth', suffix: ' · 4min ago', hl2: '', rest: '' },
-    { prefix: '✓', text: ' All 5 positions above ', highlight: '150%', suffix: ' minimum threshold', hl2: '', rest: '' },
+    { prefix: '✓', text: ' All 5 positions above ', highlight: '150%', suffix: ' protocol minimum', hl2: '', rest: '' },
     { prefix: '✓', text: ' Agent reasoning stored on-chain · tx ', highlight: '0x4f2a...8c3b', suffix: ' ↗', hl2: '', rest: '' },
 ]
 

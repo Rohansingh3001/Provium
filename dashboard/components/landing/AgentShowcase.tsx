@@ -9,7 +9,7 @@ const agents = [
         bg: '#1E40AF',
         name: 'Watcher',
         model: 'Groq · llama-3.3-70b-versatile',
-        desc: 'Monitors chain. Searches web for OFAC updates via DuckDuckGo.',
+        desc: 'Reads on-chain positions and pending regulator requests from Base Sepolia.',
     },
     {
         letter: 'A',
@@ -29,8 +29,8 @@ const agents = [
 
 const terminalLines = [
     { time: '14:23:41', agent: 'WATCHER', color: '#60A5FA', msg: 'Fetching 5 positions from Base Sepolia...' },
-    { time: '14:23:42', agent: 'WATCHER', color: '#60A5FA', msg: '🔍 Searching: "OFAC SDN list update today"' },
-    { time: '14:23:43', agent: 'WATCHER', color: '#60A5FA', msg: 'No new entries. Lowest ratio: 163%. Handing off.' },
+    { time: '14:23:42', agent: 'WATCHER', color: '#60A5FA', msg: 'Min health factor: 163%. 0 pending regulator requests.' },
+    { time: '14:23:43', agent: 'WATCHER', color: '#60A5FA', msg: 'Risk: low. Handing off to Analyst.' },
     { time: '14:23:44', agent: 'ANALYST', color: '#A78BFA', msg: 'Decision: routine collateral proof (8h elapsed)' },
     { time: '14:23:45', agent: 'ANALYST', color: '#A78BFA', msg: 'Reasoning: All 5 positions above 150%...' },
     { time: '14:23:46', agent: 'REPORTER', color: '#FF90E8', msg: 'Building Merkle tree. Committing root...' },
@@ -89,10 +89,10 @@ export function AgentShowcase() {
                             marginBottom: 32,
                         }}
                     >
-                        Three specialized AI agents coordinate in an intelligent orchestration pipeline. The Watcher
-                        searches the web for live OFAC updates. The Analyst reasons about chain state and decides what
-                        proof is needed. The Reporter generates real Noir ZK proofs on-chain. Every 60 seconds — bounded
-                        by design, because this is a financial compliance system.
+                        Three specialized AI agents coordinate in a deterministic pipeline. The Watcher
+                        reads live on-chain state. The Analyst decides what proof is needed. The Reporter
+                        generates real Noir ZK proofs and submits them on-chain. Every 60 seconds by
+                        default — bounded by design for financial compliance.
                     </p>
 
                     {/* Agent cards */}
@@ -220,7 +220,7 @@ export function AgentShowcase() {
                                     color: 'rgba(255,255,255,0.3)',
                                 }}
                             >
-                                zkcomply-agent.eth · live
+                                provium-agent.eth · live
                             </div>
                         </div>
 

@@ -6,7 +6,7 @@ const steps = [
         n: '01',
         emoji: '👁',
         title: 'Watch',
-        desc: 'Watcher agent monitors every position on your lending protocol. Searches DuckDuckGo in real-time for OFAC updates.',
+        desc: 'Watcher agent reads every lending position and pending regulator request from Base Sepolia.',
     },
     {
         n: '02',

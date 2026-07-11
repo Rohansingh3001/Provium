@@ -50,7 +50,7 @@ function HeroDashboardCard() {
                         marginLeft: 4,
                     }}
                 >
-                    zkcomply-agent.eth · Base Testnet
+                    provium-agent.eth · Base Sepolia
                 </span>
                 <div
                     style={{
@@ -265,9 +265,9 @@ export function Hero() {
                             animationDelay: '0.2s',
                         }}
                     >
-                        An autonomous AI agent team that proves your DeFi protocol meets GENIUS Act
-                        requirements — every 60 seconds, on-chain, without revealing a single user's
-                        position.
+                        An autonomous AI agent team that proves your DeFi lending protocol stays
+                        collateralized — every 60 seconds, on-chain, without revealing a single
+                        user's position.
                     </p>
 
                     <div

@@ -43,15 +43,15 @@ export function FTXSection() {
             >
                 <div style={{ marginBottom: 10, display: 'flex', alignItems: 'center', gap: 10 }}>
                     <span style={{ color: '#FF3B30', fontWeight: 800, fontSize: 16 }}>✕</span>
-                    <span>User data: [ exposed to regulators ]</span>
+                    <span>Continuous solvency attestation: [ none ]</span>
                 </div>
                 <div style={{ marginBottom: 10, display: 'flex', alignItems: 'center', gap: 10 }}>
                     <span style={{ color: '#FF3B30', fontWeight: 800, fontSize: 16 }}>✕</span>
-                    <span>Compliance proof: [ none ]</span>
+                    <span>Privacy-preserving compliance proof: [ none ]</span>
                 </div>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
                     <span style={{ color: '#FF3B30', fontWeight: 800, fontSize: 16 }}>✕</span>
-                    <span>Fine: $750,000+</span>
+                    <span>Enforcement action: fines &amp; settlements</span>
                 </div>
             </div>
 
@@ -64,8 +64,8 @@ export function FTXSection() {
                     marginBottom: 16,
                 }}
             >
-                All fined.{' '}
-                <span style={{ color: '#FF90E8', textShadow: '2px 2px 0 rgba(255,255,255,0.1)' }}>None had ZK.</span>
+                All enforced.{' '}
+                <span style={{ color: '#FF90E8', textShadow: '2px 2px 0 rgba(255,255,255,0.1)' }}>None had continuous ZK attestation.</span>
             </h2>
             <p style={{ fontSize: 20, fontWeight: 700, color: '#FFE500' }}>
                 Provium changes that.

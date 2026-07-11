@@ -2,7 +2,7 @@
 
 ## System Overview
 
-Provium is an autonomous compliance infrastructure for DeFi protocols, built to satisfy the reserve-proof requirements of the **US GENIUS Act** (Guiding and Establishing National Innovation for U.S. Stablecoins). The system operates as three coordinated layers:
+Provium is an autonomous compliance infrastructure for DeFi lending protocols. It demonstrates continuous, privacy-preserving solvency attestation — a pattern aligned with the transparency goals of the **US GENIUS Act** (which requires payment stablecoin issuers to maintain 1:1 reserve backing and publish monthly attestations). This demo applies that attestation model to DeFi collateral ratios on Base Sepolia. The system operates as three coordinated layers:
 
 1. **Smart Contracts** — On-chain compliance registry, regulator portal, and ZK verifier on Base Sepolia
 2. **Autonomous Agent** — Python-based pipeline that monitors, proves, and submits compliance reports

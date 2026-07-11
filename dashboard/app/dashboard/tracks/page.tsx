@@ -307,8 +307,7 @@ export default function TracksPage() {
                 </div>
                 <ol style={{ fontSize: 13, color: '#5A5A5A', lineHeight: 1.8, paddingLeft: 20, marginTop: 8 }}>
                     <li>
-                        <strong>Per-position ratio check</strong> — each of 16 positions individually meets 150%
-                        collateral ratio
+                        <strong>Per-position ratio check</strong> — each of 16 positions individually meets the protocol&apos;s 150% minimum
                     </li>
                     <li>
                         <strong>Merkle proof</strong> — each position ties to the public Poseidon2 Merkle root

@@ -23,7 +23,7 @@ const dmMono = DM_Mono({
 export const metadata: Metadata = {
     title: 'Provium — Autonomous DeFi Compliance',
     description:
-        'Three AI agents proving DeFi protocol compliance with zero knowledge proofs. GENIUS Act ready. Built on Base.',
+        'Autonomous ZK compliance for DeFi lending. Continuous collateral attestation on Base Sepolia.',
     openGraph: {
         title: 'Provium — Autonomous DeFi Compliance',
         description:

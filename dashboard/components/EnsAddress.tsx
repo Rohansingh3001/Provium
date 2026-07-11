@@ -15,7 +15,7 @@ interface EnsAddressProps {
  * Falls back to a truncated 0x address.
  * Shows ENS name when available, with address as fallback.
  *
- * Demo: "zkcomply-agent.eth" instead of "0x4f2a...8c3b"
+ * Demo: "provium-agent.eth" instead of "0x4f2a...8c3b"
  */
 export function EnsAddress({ address, className = '', truncate = 4 }: EnsAddressProps) {
     const { data: ensName, isLoading } = useEnsName({
