@@ -28,6 +28,14 @@ async function main() {
     await (await registry.setVerifier(verifierAddr)).wait();
     console.log("  ComplianceRegistry.setVerifier ✓");
 
+    console.log("Wiring LendingProtocol for public-input binding...");
+    // Both compliance contracts must know the lending address to bind every
+    // verified proof's positions_root/protocol_address to live chain state.
+    await (await registry.setLendingProtocol(cfg.LendingProtocol)).wait();
+    console.log("  ComplianceRegistry.setLendingProtocol ✓");
+    await (await portal.setLendingProtocol(cfg.LendingProtocol)).wait();
+    console.log("  RegulatorPortal.setLendingProtocol ✓");
+
     console.log("Minting liquidity...");
     await (await weth.mintTo(cfg.LendingProtocol, ethers.parseEther("1000"))).wait();
     console.log("  WETH minted ✓");

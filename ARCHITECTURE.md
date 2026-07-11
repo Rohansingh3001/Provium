@@ -59,7 +59,17 @@ For all 16 positions in the protocol:
 
 - ZK-friendly hash function (low constraint count in BN254 circuits)
 - Native support in Noir stdlib (`std::hash::poseidon2_permutation`)
-- Identical implementation in Python (`poseidon-hash` library) ensures Merkle tree consistency between agent and circuit
+- **Byte-identical implementation in Python** (`agent/tools/poseidon2.py`) ensures the
+  agent's Merkle tree matches the circuit's. This is a pure-Python transcription of
+  Barretenberg's `Poseidon2Bn254ScalarFieldParams` (t=4, R_F=8, R_P=56, S-box x⁵),
+  verified against Barretenberg's own canonical test vector on import via
+  `poseidon2_selftest()`.
+
+> ⚠️ **Historical bug (fixed):** an earlier version hashed with the `poseidon-hash`
+> PyPI package, which implements *classic Poseidon1* (t=3) — a different hash. The
+> Python Merkle root never matched the circuit's, so `nargo execute` always failed
+> `assert curr == positions_root` and no real proof could be produced. The dedicated
+> Poseidon2 module closes this.
 
 ### Proof Pipeline
 
@@ -134,6 +144,8 @@ orchestrator.py
 | **Prompt injection** | `_sanitize_field()` strips control chars from all on-chain strings before they enter LLM prompts. `_sanitize_jurisdiction()` enforces an alphanumeric allowlist. |
 | **Hallucinated actions** | Analyst outputs `request_id` fields. Before fulfilling any request, orchestrator validates it exists in `known_request_ids` from the actual on-chain pending requests. Unknown IDs are silently dropped. |
 | **Data summarization** | Python passes raw JSON between phases — LLMs never touch the position data that feeds into the Merkle tree. |
+| **Valid proof, forged claims** | On-chain, a verified proof's public inputs are bound to the report: `positions_root` must equal the live `LendingProtocol.currentPositionRoot()`, and totals / block / threshold / protocol address must equal the stored values. A genuine proof cannot be paired with fabricated numbers. |
+| **False violation on RPC error** | The agent distinguishes "verifier returned false" (record it) from "verifier call errored" (retry next epoch), so an infra blip never writes a permanent bogus non-compliant report. |
 
 ---
 
@@ -300,17 +312,19 @@ Chain reads: useProofHistory, useComplianceStatus, useRegulatorRequests (React h
 
 ### pytest Test Suite (`agent/test_provium.py`)
 
-40 tests covering:
+52 tests covering:
+- **Poseidon2**: byte-exact match vs Barretenberg test vector, determinism, order-sensitivity, field reduction
+- **Merkle tree**: root construction, 6 public inputs, aggregate/ratio math, padding to 16 leaves
 - **ENSIP-25**: ERC-7930 encoding (mainnet, Base Sepolia), text key construction, verification logic
 - **Fileverse**: Dossier builder (schema, hash integrity, all fields), local save, status reporting
-- **BitGo**: Client config, disabled-state behavior, calldata builder
+- **BitGo**: Client config, disabled-state behavior, mock client shape, calldata builder
 - **Security**: Sanitization functions (control char stripping, truncation, jurisdiction injection defense)
-- **Imports**: All 5 tool modules import cleanly
+- **Imports**: All tool modules import cleanly
 
 ```bash
 cd agent && source venv/bin/activate
 python -m pytest test_provium.py -v
-# Expected: 40 passed
+# Expected: 52 passed
 ```
 
 ### Integration Test (`agent/test_bounty_integrations.py`)

@@ -25,25 +25,30 @@ async function main() {
     await portal.waitForDeployment();
     console.log("RegulatorPortal deployed to:", portal.target);
 
-    const ComplianceRegistry = await ethers.getContractFactory("ComplianceRegistry");
-    const registry = await ComplianceRegistry.deploy(lending.target);
-    await registry.waitForDeployment();
-    console.log("ComplianceRegistry deployed to:", registry.target);
-
+    // Deploy the verifier BEFORE the registry so we can wire it in the constructor.
     const UltraVerifier = await ethers.getContractFactory("UltraVerifier");
     const verifier = await UltraVerifier.deploy();
     await verifier.waitForDeployment();
     console.log("UltraVerifier deployed to:", verifier.target);
+
+    // Registry now takes (verifier, lendingProtocol): the lending address lets it
+    // bind every verified proof's positions_root/protocol_address to live chain state.
+    const ComplianceRegistry = await ethers.getContractFactory("ComplianceRegistry");
+    const registry = await ComplianceRegistry.deploy(verifier.target, lending.target);
+    await registry.waitForDeployment();
+    console.log("ComplianceRegistry deployed to:", registry.target);
 
     const agentWallet = process.env.AGENT_WALLET_ADDRESS || deployer.address;
     await lending.setAgentAddress(agentWallet);
     await portal.setAgentAddress(agentWallet);
     await registry.setAgentAddress(agentWallet);
 
-    // Wire ZK verifier into compliance contracts — proof verification is now enforced on-chain
+    // Wire ZK verifier + lending into compliance contracts — proof verification and
+    // public-input binding are now enforced on-chain.
     await registry.setVerifier(verifier.target);
     await portal.setVerifier(verifier.target);
-    console.log("ZK verifier wired into ComplianceRegistry and RegulatorPortal");
+    await portal.setLendingProtocol(lending.target);
+    console.log("ZK verifier + lending wired into ComplianceRegistry and RegulatorPortal");
 
     await weth.mintTo(lending.target, ethers.parseEther("1000"));
     await usdc.mintTo(lending.target, ethers.parseUnits("1000000", 6));

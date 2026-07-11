@@ -7,6 +7,10 @@ interface IUltraVerifier {
     function verify(bytes calldata proof, bytes32[] calldata publicInputs) external view returns (bool);
 }
 
+interface ILendingProtocol {
+    function currentPositionRoot() external view returns (bytes32);
+}
+
 contract RegulatorPortal is Ownable {
     struct ComplianceRequest {
         uint256 requestId;
@@ -29,6 +33,15 @@ contract RegulatorPortal is Ownable {
     address public agentAddress;
     address public lendingProtocol;
     IUltraVerifier public ultraVerifier;
+
+    // Collateral ratio (bps) a fulfilling proof must attest to — must match the
+    // circuit's min_ratio_bps public input and LendingProtocol.MIN_RATIO_BPS.
+    uint256 public requiredRatioBps = 15000; // 150%
+
+    // Public-input layout of the collateral circuit:
+    // [0]=positions_root [1]=min_ratio_bps [2]=total_collateral
+    // [3]=total_debt [4]=block_number [5]=protocol_address
+    uint256 private constant PUBLIC_INPUT_COUNT = 6;
 
     // Rate limiting: minimum seconds between requests per address.
     uint256 public constant REQUEST_COOLDOWN = 300; // 5 minutes
@@ -87,9 +100,23 @@ contract RegulatorPortal is Ownable {
         bytes32[] calldata publicInputs,
         string calldata agentReasoning
     ) external onlyAgent {
-        // ZK proof must verify on-chain before fulfilling regulator request
+        // ZK proof must verify on-chain before fulfilling regulator request, AND its
+        // public inputs must be bound to the live protocol state — otherwise a valid
+        // proof about an unrelated position set could fulfill this request.
         if (address(ultraVerifier) != address(0)) {
             require(ultraVerifier.verify(proof, publicInputs), "ZK proof verification failed");
+            require(publicInputs.length == PUBLIC_INPUT_COUNT, "Bad public input count");
+            require(uint256(publicInputs[1]) == requiredRatioBps, "Ratio threshold mismatch");
+            if (lendingProtocol != address(0)) {
+                require(
+                    publicInputs[0] == ILendingProtocol(lendingProtocol).currentPositionRoot(),
+                    "Root mismatch"
+                );
+                require(
+                    uint256(publicInputs[5]) == uint256(uint160(lendingProtocol)),
+                    "Protocol mismatch"
+                );
+            }
         }
         bytes32 ph = keccak256(proof);
         _fulfill(requestId, ph, agentReasoning);
@@ -149,11 +176,24 @@ contract RegulatorPortal is Ownable {
     }
 
     function setVerifier(address _verifier) external onlyOwner {
+        require(_verifier != address(0), "Zero address: use a valid verifier");
         ultraVerifier = IUltraVerifier(_verifier);
     }
 
     function setAgentAddress(address agent) external onlyOwner {
         require(agent != address(0), "Zero address");
         agentAddress = agent;
+    }
+
+    // Point the portal at the LendingProtocol whose root proofs are bound to.
+    function setLendingProtocol(address _lendingProtocol) external onlyOwner {
+        require(_lendingProtocol != address(0), "Zero address");
+        lendingProtocol = _lendingProtocol;
+    }
+
+    // Keep in sync with LendingProtocol.MIN_RATIO_BPS and the circuit's min_ratio_bps.
+    function setRequiredRatioBps(uint256 bps) external onlyOwner {
+        require(bps > 0, "Ratio must be > 0");
+        requiredRatioBps = bps;
     }
 }

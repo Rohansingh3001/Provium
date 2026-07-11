@@ -137,24 +137,38 @@ def submit_proof_to_registry(
         public_inputs = [bytes.fromhex(x.replace("0x", "")).ljust(32, b"\x00")[:32] for x in json.loads(public_inputs_json)]
 
         # Step 1: Verify proof on-chain (read call — free).
-        # Retry once on transient errors before recording as non-compliant.
+        # We must distinguish two very different outcomes:
+        #   (a) the verifier RETURNS False  → genuine non-compliance, record it.
+        #   (b) the verifier CALL errors    → transient RPC/node issue, NOT evidence of
+        #       non-compliance. Recording a violation here would write a permanent, false
+        #       "non-compliant" report on-chain for what is really an infra blip. So we
+        #       abort this action instead and let the next epoch retry.
         verified = False
         verify_error = None
-        for attempt in range(2):
+        got_definitive_result = False
+        for attempt in range(3):
             try:
                 verified = verifier.functions.verify(proof_bytes, public_inputs).call()
                 verify_error = None
+                got_definitive_result = True
                 break
             except Exception as e:
                 verify_error = str(e)
-                if attempt == 0:
-                    log.warning(f"  [Verifier] Attempt 1 failed: {e} — retrying...")
+                if attempt < 2:
+                    log.warning(f"  [Verifier] Attempt {attempt + 1}/3 failed: {e} — retrying...")
                 else:
-                    log.error(
-                        f"  [Verifier] Both attempts failed: {e}. "
-                        "Recording as non-compliant to preserve honesty."
-                    )
-                    verified = False
+                    log.error(f"  [Verifier] All 3 attempts errored: {e}. Aborting to avoid a false violation.")
+
+        # If the proof is compliant on its face (agent believes positions are healthy) but the
+        # verifier call never gave us a definitive answer, do NOT submit — retry next epoch.
+        if not got_definitive_result and is_compliant:
+            return json.dumps({
+                "error": (
+                    "verifier call failed after 3 attempts; not submitting to avoid recording "
+                    f"a false violation. Last error: {verify_error}"
+                ),
+                "retryable": True,
+            })
 
         block_num  = w3.eth.block_number
 

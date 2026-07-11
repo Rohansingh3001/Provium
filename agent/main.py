@@ -83,21 +83,20 @@ def check_nargo() -> bool:
 
 
 def check_poseidon_hash() -> bool:
-    """Verify BN254 Poseidon is installed and produces field-valid outputs."""
+    """Verify the built-in Poseidon2 matches Barretenberg and is field-valid."""
     try:
-        from tools.proof_tools import _poseidon_bn254, BN254_PRIME
+        from tools.poseidon2 import poseidon2_selftest, BN254_PRIME
+        from tools.proof_tools import _poseidon_bn254
+        # Byte-parity with the Noir circuit's hash (Barretenberg test vector).
+        poseidon2_selftest()
         h = _poseidon_bn254(0, 0)
         assert 0 <= h < BN254_PRIME, f"Output out of field: {h}"
         h2 = _poseidon_bn254(10**18, 12000 * 10**6)
         assert 0 <= h2 < BN254_PRIME
-        print(f"  [OK] BN254 Poseidon working (hash(0,0)={str(h)[:20]}...)")
+        print(f"  [OK] Poseidon2 (BN254 t=4) matches Barretenberg (hash(0,0)={str(h)[:20]}...)")
         return True
-    except RuntimeError as e:
-        print(f"  [X] poseidon-hash not installed: {e}")
-        print("      → pip install poseidon-hash>=0.1.4")
-        return False
     except Exception as e:
-        print(f"  [X] BN254 Poseidon check failed: {e}")
+        print(f"  [X] Poseidon2 check failed: {e}")
         return False
 
 

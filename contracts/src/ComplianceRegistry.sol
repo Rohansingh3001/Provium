@@ -7,6 +7,10 @@ interface IUltraVerifier {
     function verify(bytes calldata proof, bytes32[] calldata publicInputs) external view returns (bool);
 }
 
+interface ILendingProtocol {
+    function currentPositionRoot() external view returns (bytes32);
+}
+
 contract ComplianceRegistry is Ownable {
     struct ComplianceReport {
         uint256 reportId;
@@ -28,6 +32,18 @@ contract ComplianceRegistry is Ownable {
     ComplianceReport[] public reports;
     address public agentAddress;
     IUltraVerifier public ultraVerifier;
+
+    // The LendingProtocol whose committed position root every proof must match.
+    ILendingProtocol public lendingProtocol;
+
+    // The collateral ratio (bps) a compliant proof must attest to. Must equal
+    // the circuit's min_ratio_bps public input AND LendingProtocol.MIN_RATIO_BPS.
+    uint256 public requiredRatioBps = 15000; // 150%
+
+    // Number of public inputs the collateral circuit exposes, in this order:
+    // [0]=positions_root [1]=min_ratio_bps [2]=total_collateral
+    // [3]=total_debt [4]=block_number [5]=protocol_address
+    uint256 private constant PUBLIC_INPUT_COUNT = 6;
 
     // Must match LendingProtocol.wethPriceInUSDC — update via setWethPrice() together.
     uint256 public wethPriceInUSDC = 2000 * 1e6;
@@ -52,8 +68,9 @@ contract ComplianceRegistry is Ownable {
         _;
     }
 
-    constructor(address _verifier) Ownable(msg.sender) {
+    constructor(address _verifier, address _lendingProtocol) Ownable(msg.sender) {
         if (_verifier != address(0)) ultraVerifier = IUltraVerifier(_verifier);
+        if (_lendingProtocol != address(0)) lendingProtocol = ILendingProtocol(_lendingProtocol);
     }
 
     function submitReport(
@@ -69,9 +86,13 @@ contract ComplianceRegistry is Ownable {
         string calldata agentReasoning,
         uint256 requestId
     ) external onlyAgent returns (uint256) {
-        // If claiming compliance, the ZK proof MUST verify on-chain — cannot be faked
+        // If claiming compliance, the ZK proof MUST verify on-chain — cannot be faked.
+        // Verification alone is not enough: the proof commits to a set of PUBLIC INPUTS,
+        // and we must bind those inputs to the values stored in this report. Otherwise a
+        // valid proof about numbers X could be paired with a report claiming numbers Y.
         if (isCompliant && address(ultraVerifier) != address(0)) {
             require(ultraVerifier.verify(proof, publicInputs), "ZK proof verification failed");
+            _bindPublicInputs(publicInputs, blockNumber, totalCollateral, totalDebt);
         }
         bytes32 proofHash = keccak256(proof);
         uint256 ratioBps = totalDebt == 0
@@ -103,6 +124,35 @@ contract ComplianceRegistry is Ownable {
         }
 
         return id;
+    }
+
+    // Ties a verified proof to the report's claimed values. Reverts if the proof's
+    // public inputs disagree with what the agent is asking us to store — this is what
+    // makes "trust the math" real rather than decorative.
+    function _bindPublicInputs(
+        bytes32[] calldata publicInputs,
+        uint256 blockNumber,
+        uint256 totalCollateral,
+        uint256 totalDebt
+    ) internal view {
+        require(publicInputs.length == PUBLIC_INPUT_COUNT, "Bad public input count");
+
+        // [0] positions_root — must match the root LendingProtocol has committed on-chain,
+        // so the proof is about the protocol's ACTUAL current positions, not a stale/forged set.
+        if (address(lendingProtocol) != address(0)) {
+            require(publicInputs[0] == lendingProtocol.currentPositionRoot(), "Root mismatch");
+        }
+        // [1] min_ratio_bps — the threshold the circuit enforced must be the required one.
+        require(uint256(publicInputs[1]) == requiredRatioBps, "Ratio threshold mismatch");
+        // [2] total_collateral / [3] total_debt — the proven aggregates must equal what we store.
+        require(uint256(publicInputs[2]) == totalCollateral, "Collateral mismatch");
+        require(uint256(publicInputs[3]) == totalDebt, "Debt mismatch");
+        // [4] block_number — the proven block must equal the report's block.
+        require(uint256(publicInputs[4]) == blockNumber, "Block mismatch");
+        // [5] protocol_address — the proof must be about THIS protocol.
+        if (address(lendingProtocol) != address(0)) {
+            require(uint256(publicInputs[5]) == uint256(uint160(address(lendingProtocol))), "Protocol mismatch");
+        }
     }
 
     function getReport(uint256 id) external view returns (ComplianceReport memory) {
@@ -157,5 +207,17 @@ contract ComplianceRegistry is Ownable {
     function setAgentAddress(address agent) external onlyOwner {
         require(agent != address(0), "Zero address");
         agentAddress = agent;
+    }
+
+    // The LendingProtocol whose committed root proofs are bound to.
+    function setLendingProtocol(address _lendingProtocol) external onlyOwner {
+        require(_lendingProtocol != address(0), "Zero address");
+        lendingProtocol = ILendingProtocol(_lendingProtocol);
+    }
+
+    // Keep in sync with LendingProtocol.MIN_RATIO_BPS and the circuit's min_ratio_bps.
+    function setRequiredRatioBps(uint256 bps) external onlyOwner {
+        require(bps > 0, "Ratio must be > 0");
+        requiredRatioBps = bps;
     }
 }

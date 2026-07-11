@@ -41,6 +41,7 @@ LENDING_ABI = [
     {"inputs": [], "name": "getTotalDebt", "outputs": [{"type": "uint256"}], "stateMutability": "view", "type": "function"},
     {"inputs": [], "name": "currentPositionRoot", "outputs": [{"type": "bytes32"}], "stateMutability": "view", "type": "function"},
     {"inputs": [], "name": "positionRootBlock", "outputs": [{"type": "uint256"}], "stateMutability": "view", "type": "function"},
+    {"inputs": [], "name": "wethPriceInUSDC", "outputs": [{"type": "uint256"}], "stateMutability": "view", "type": "function"},
 ]
 
 PORTAL_ABI = [
@@ -71,10 +72,18 @@ lending  = w3.eth.contract(address=LENDING_ADDR, abi=LENDING_ABI)
 portal   = w3.eth.contract(address=PORTAL_ADDR,  abi=PORTAL_ABI)
 registry = w3.eth.contract(address=REGISTRY_ADDR, abi=REGISTRY_ABI)
 
-# Testnet price assumption: 1 WETH = 2000 USDC.
-# PRODUCTION: replace with a live Chainlink ETH/USD read from
-# 0x71041dddad3595F9CEd3DcCFBe3D1F4b0a16Bb70 (Base Sepolia ETH/USD feed).
-WETH_PRICE_USDC = 2000
+# Fallback price if the on-chain read fails: 1 WETH = 2000 USDC.
+# PRODUCTION: LendingProtocol.wethPriceInUSDC should itself be fed by a live
+# Chainlink ETH/USD read (Base Sepolia feed 0x71041dddad3595F9CEd3DcCFBe3D1F4b0a16Bb70).
+_FALLBACK_WETH_PRICE_USDC = 2000
+
+
+def _weth_price_usdc() -> int:
+    """Live WETH price in whole USDC, read from LendingProtocol (6-decimal value / 1e6)."""
+    try:
+        return int(lending.functions.wethPriceInUSDC().call()) // 10**6
+    except Exception:
+        return _FALLBACK_WETH_PRICE_USDC
 
 
 # ── Tools ────────────────────────────────────────────────────────────────────
@@ -111,7 +120,9 @@ def get_all_positions() -> str:
         total_coll = lending.functions.getTotalCollateral().call()
         total_debt = lending.functions.getTotalDebt().call()
         # Integer arithmetic avoids float precision loss on large wei values.
-        ratio_bps  = (total_coll * WETH_PRICE_USDC * 10**6 * 10000) // (total_debt * 10**18) if total_debt else 999999
+        # Live on-chain price keeps this aligned with the contract's health-factor math.
+        weth_price = _weth_price_usdc()
+        ratio_bps  = (total_coll * weth_price * 10**6 * 10000) // (total_debt * 10**18) if total_debt else 999999
 
         result = json.dumps({
             "block": w3.eth.block_number,

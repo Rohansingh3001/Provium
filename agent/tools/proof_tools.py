@@ -2,11 +2,17 @@
 proof_tools.py — Build Merkle tree, commit root on-chain, run real nargo prove.
 
 POSEIDON NOTE:
-  The Noir circuit uses std::hash::poseidon::bn254::hash_2.
-  Python MUST use the same BN254 Poseidon to build the Merkle tree,
-  otherwise witness generation will fail (assert curr == positions_root).
-  On Linux: install poseidon-hash>=0.1.4, nargo, and bb (Noir toolchain).
-  On Windows: proofs CANNOT be generated (nargo not supported).
+  The Noir circuit builds every Merkle node as
+      poseidon2_permutation([a, b, 0, 0], 4)[0]
+  i.e. Barretenberg's Poseidon2 (t=4, BN254). Python MUST use the SAME hash to
+  build the Merkle tree, otherwise witness generation fails on
+  `assert curr == positions_root`. We use tools/poseidon2.py, a pure-Python
+  Poseidon2 verified byte-for-byte against Barretenberg's canonical test vector
+  (no external hash library required — the old `poseidon-hash` package was
+  classic Poseidon1, a DIFFERENT hash, and never matched the circuit).
+
+  Merkle build works on any OS. Proof GENERATION still needs the Noir toolchain
+  (nargo + bb), which is Linux-only; on Windows generate_zk_proof() fails fast.
 """
 import json
 import os
@@ -18,11 +24,7 @@ from eth_account import Account
 from dotenv import load_dotenv
 from agno.tools import tool
 from tools.tx_utils import _get_account, _eip1559_params
-
-load_dotenv()
-
-# ── BN254 field prime (same field Noir / barretenberg uses) ─────────────────
-BN254_PRIME = 21888242871839275222246405745257275088548364400416034343698204186575808495617
+from tools.poseidon2 import poseidon2_hash_2, BN254_PRIME
 
 RPC            = os.getenv("BASE_SEPOLIA_RPC", "https://sepolia.base.org")
 CIRCUITS_PATH  = Path(os.getenv("CIRCUITS_PATH", "../circuits/collateral_proof"))
@@ -39,44 +41,37 @@ except Exception:
 LENDING_ABI_COMMIT = [
     {"inputs": [{"name": "root", "type": "bytes32"}, {"name": "blockNum", "type": "uint256"}],
      "name": "commitPositionRoot", "outputs": [], "stateMutability": "nonpayable", "type": "function"},
+    {"inputs": [], "name": "wethPriceInUSDC", "outputs": [{"type": "uint256"}],
+     "stateMutability": "view", "type": "function"},
 ]
 lending = w3.eth.contract(address=LENDING_ADDR, abi=LENDING_ABI_COMMIT)
+
+# Fallback price if the on-chain read fails (1 WETH = 2000 USDC, 6 decimals).
+_FALLBACK_WETH_PRICE_USDC6 = 2000 * 10**6
+
+
+def _weth_price_usdc6() -> int:
+    """
+    Read the live WETH/USDC price (USDC-6) from LendingProtocol so the agent's
+    ratio matches exactly what the contract computes. Falls back to 2000 USDC
+    if the read fails (e.g. dry-run with no RPC).
+    """
+    try:
+        return int(lending.functions.wethPriceInUSDC().call())
+    except Exception:
+        return _FALLBACK_WETH_PRICE_USDC6
 
 TREE_SIZE = 16
 DEPTH     = 4  # log2(16)
 
-# ── Real BN254 Poseidon (must match Noir's std::hash::poseidon::bn254::hash_2) ─
-_bn254_poseidon_instance = None
-
-def _get_poseidon():
-    """Lazy-init BN254 Poseidon instance from poseidon-hash library."""
-    global _bn254_poseidon_instance
-    if _bn254_poseidon_instance is not None:
-        return _bn254_poseidon_instance
-    try:
-        from poseidon import Poseidon
-        _bn254_poseidon_instance = Poseidon(
-            p=BN254_PRIME,
-            security_level=128,
-            alpha=5,
-            input_rate=2,
-            t=3,
-        )
-        return _bn254_poseidon_instance
-    except ImportError:
-        raise RuntimeError(
-            "poseidon-hash not installed. Run: pip install poseidon-hash>=0.1.4\n"
-            "This is required to match Noir's BN254 Poseidon hash in the ZK circuit."
-        )
-
 
 def _poseidon_bn254(a: int, b: int) -> int:
     """
-    Real BN254 Poseidon hash matching Noir's std::hash::poseidon::bn254::hash_2.
-    Both inputs and output are reduced mod BN254_PRIME.
+    Two-input Poseidon2 hash matching the circuit's
+        p2hash(a, b) = std::hash::poseidon2_permutation([a, b, 0, 0], 4)[0]
+    Verified byte-for-byte against Barretenberg (see tools/poseidon2.py).
     """
-    p_inst = _get_poseidon()
-    return int(p_inst.run_hash([a % BN254_PRIME, b % BN254_PRIME])) % BN254_PRIME
+    return poseidon2_hash_2(a, b)
 
 
 
@@ -136,7 +131,9 @@ def build_merkle_tree_and_inputs(positions_json: str) -> str:
         total_coll = sum(collaterals)
         total_debt = sum(debts)
         # Integer arithmetic avoids float precision loss on large wei values.
-        ratio_bps  = (total_coll * 2000 * 10**6 * 10000) // (total_debt * 10**18) if total_debt else 999999
+        # Use the LIVE on-chain price so this matches ComplianceRegistry's ratioBps exactly.
+        price_usdc6 = _weth_price_usdc6()
+        ratio_bps  = (total_coll * price_usdc6 * 10000) // (total_debt * 10**18) if total_debt else 999999
 
         block_num  = data.get("block", w3.eth.block_number)
         root_str   = str(root)

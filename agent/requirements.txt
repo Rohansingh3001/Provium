@@ -7,6 +7,8 @@ duckduckgo-search>=6.0.0
 ddgs>=9.10.0
 requests>=2.31.0
 eth-abi>=5.0.0
-poseidon-hash>=0.1.4
 diskcache>=5.6.0
+# NOTE: Poseidon2 (matching the Noir circuit) is implemented in tools/poseidon2.py —
+# no external hash package. The old `poseidon-hash` dep was classic Poseidon1 (a
+# different hash) and produced Merkle roots the circuit rejected; it has been removed.
 # BitGo integration: uses requests (already above) — no extra SDK needed

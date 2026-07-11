@@ -3,8 +3,8 @@
 verify_setup.py — Pre-flight verification for Provium testnet agent.
 
 Checks:
-  1. Python packages installed (poseidon-hash, web3, agno, groq, dotenv)
-  2. BN254 Poseidon produces field-valid outputs (< BN254 prime)
+  1. Python packages installed (web3, agno, groq, dotenv, eth_account)
+  2. Poseidon2 matches Barretenberg + produces field-valid outputs (< BN254 prime)
   3. Merkle tree root is deterministic and field-valid
   4. nargo is installed and can prove the test circuit
   5. RPC connectivity to Base Sepolia
@@ -34,7 +34,7 @@ results = []
 
 # ── 1. Python packages ───────────────────────────────────────────────────────
 print("\n── 1. Python packages ──")
-packages = ["poseidon", "web3", "agno", "groq", "dotenv", "eth_account"]
+packages = ["web3", "agno", "groq", "dotenv", "eth_account"]
 all_pkg_ok = True
 for pkg in packages:
     try:
@@ -45,10 +45,15 @@ for pkg in packages:
         all_pkg_ok = False
 results.append(("Python packages", all_pkg_ok))
 
-# ── 2. BN254 Poseidon hash ───────────────────────────────────────────────────
-print("\n── 2. BN254 Poseidon hash ──")
+# ── 2. Poseidon2 hash (matches Noir circuit) ─────────────────────────────────
+print("\n── 2. Poseidon2 hash (BN254 t=4, matches circuit) ──")
 try:
+    from tools.poseidon2 import poseidon2_selftest
     from tools.proof_tools import _poseidon_bn254, BN254_PRIME as P
+
+    # Test 0: byte-parity with Barretenberg's canonical test vector
+    poseidon2_selftest()
+    print(f"  {PASS} Poseidon2 self-test matches Barretenberg test vector")
 
     # Test 1: hash(0, 0) is in field
     h00 = _poseidon_bn254(0, 0)

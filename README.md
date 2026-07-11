@@ -88,6 +88,13 @@ The Noir circuit (`circuits/collateral_proof/src/main.nr`) proves **four things*
 
 ## Deployed Contracts (Base Sepolia)
 
+> ⚠️ **These addresses are from the pre-hardening deployment.** The compliance
+> contracts were changed to bind ZK public inputs to the stored report (see
+> Security below), which changes their bytecode. **Redeploy** (`npx hardhat run
+> scripts/deploy.ts --network base-sepolia`) and update this table +
+> `deployments/base-sepolia.json` + the dashboard env before demoing the hardened
+> version. See "Redeploy Checklist" below.
+
 | Contract | Address |
 |----------|---------|
 | ComplianceRegistry | [`0xFbE3F85Ab541Cd538542B543E87706D00e1f7013`](https://sepolia.basescan.org/address/0xFbE3F85Ab541Cd538542B543E87706D00e1f7013) |
@@ -253,6 +260,9 @@ The agent registers its identity via ENS using the ENSIP-25 standard, allowing a
 | Prompt injection via on-chain strings | `_sanitize_field()`, `_sanitize_jurisdiction()` strip control chars, enforce allowlists | `orchestrator.py` |
 | LLM hallucinated request IDs | `known_request_ids` validation — agent only fulfills real pending requests | `orchestrator.py` |
 | Fake compliance proofs | On-chain `UltraVerifier.verify()` — ZK proof MUST pass for `isCompliant=true` | `ComplianceRegistry.sol` |
+| **Valid proof, mismatched report** | Verified proof's **public inputs are bound** to the stored report: `positions_root` must equal `LendingProtocol.currentPositionRoot()`, and `total_collateral`/`total_debt`/`block_number`/`min_ratio_bps`/`protocol_address` must equal the report's values. A real proof can no longer be paired with fabricated numbers. | `ComplianceRegistry._bindPublicInputs()`, `RegulatorPortal.fulfillRequest()` |
+| **Hash divergence (unprovable tree)** | Python builds the Merkle tree with the *exact* Poseidon2 the circuit uses (Barretenberg BN254, t=4). `poseidon2_selftest()` proves byte-parity against Barretenberg's own test vector at import time. | `agent/tools/poseidon2.py` |
+| **False violation on RPC blip** | If the verifier *call* errors (vs. returns false) the agent aborts and retries next epoch instead of writing a permanent bogus non-compliant report. | `submit_tools.py` |
 | Raw private key exposure | BitGo multi-sig option — key never leaves HSM | `bitgo_tools.py` |
 | Fileverse API failure | Graceful fallback to local dossier save — never blocks the core loop | `fileverse_tools.py` |
 
@@ -262,25 +272,65 @@ The agent registers its identity via ENS using the ENSIP-25 standard, allowing a
 
 ```
 zkcomply/
-├── agent/                    # Autonomous compliance agent (Python)
-│   ├── main.py               # CLI entry point
-│   ├── orchestrator.py       # Deterministic 3-phase pipeline
-│   ├── agents/               # LLM agents (Watcher, Analyst, Reporter)
-│   ├── tools/                # On-chain tools, ZK proof, BitGo, Fileverse, ENSIP-25
-│   └── dossiers/             # Local compliance dossier storage
-├── circuits/                 # Noir ZK circuits
-│   └── collateral_proof/     # Collateral ratio proof (Poseidon2 Merkle, UltraHonk)
-├── contracts/                # Solidity smart contracts (Hardhat)
-│   ├── src/                  # ComplianceRegistry, RegulatorPortal, LendingProtocol
-│   ├── scripts/              # Deploy, seed, and setup scripts
-│   └── deployments/          # Deployed addresses per network
-├── dashboard/                # Regulator-facing Next.js dashboard
-│   ├── app/                  # App Router pages
-│   ├── components/           # React components (dashboard, landing, UI)
-│   └── lib/                  # Hooks, contract ABIs, utilities
-├── demo_regulator_flow.py    # End-to-end demo script
-└── demo_fake_proof.py        # Quick demo without nargo/bb
+├── agent/                       # Autonomous compliance agent (Python)
+│   ├── main.py                  # CLI entry point
+│   ├── orchestrator.py          # Deterministic 3-phase pipeline
+│   ├── agents/                  # LLM agents (Watcher, Analyst, Reporter)
+│   ├── tools/                   # On-chain tools, ZK proof, BitGo, Fileverse, ENSIP-25
+│   │   └── poseidon2.py         # Poseidon2 (BN254 t=4) — verified vs Barretenberg
+│   ├── dossiers/                # Local compliance dossier storage
+│   ├── test_provium.py          # pytest suite (52 tests, offline)
+│   ├── test_bounty_integrations.py  # standalone bounty-integration check
+│   ├── demo_regulator_flow.py   # End-to-end regulator flow (dry-run narration)
+│   └── demo_fake_proof.py       # Proof pipeline without nargo/bb
+├── circuits/                    # Noir ZK circuits
+│   └── collateral_proof/        # Collateral ratio proof (Poseidon2 Merkle, UltraHonk)
+├── contracts/                   # Solidity smart contracts (Hardhat)
+│   ├── src/                     # ComplianceRegistry, RegulatorPortal, LendingProtocol
+│   ├── scripts/                 # Deploy, seed, and setup scripts
+│   └── deployments/             # Deployed addresses per network
+└── dashboard/                   # Regulator-facing Next.js dashboard
+    ├── app/                     # App Router pages
+    ├── components/              # React components (dashboard, landing, UI)
+    └── lib/                     # Hooks, contract ABIs, utilities
 ```
+
+---
+
+## Redeploy Checklist (after security hardening)
+
+The compliance contracts now bind ZK public inputs to the stored report, so the
+bytecode changed and the system must be redeployed for the guarantees to hold.
+
+1. **Verify the Poseidon parity** (no toolchain needed):
+   ```bash
+   cd agent && python tools/poseidon2.py        # "self-test PASSED"
+   python -m pytest test_provium.py -q          # 52 passed
+   ```
+2. **Compile + redeploy contracts:**
+   ```bash
+   cd contracts
+   npx hardhat compile
+   npx hardhat run scripts/deploy.ts --network base-sepolia
+   ```
+   `deploy.ts` deploys the verifier before the registry, passes
+   `ComplianceRegistry(verifier, lending)`, and wires `setLendingProtocol` on
+   the portal. `requiredRatioBps` defaults to `15000` (must equal the circuit's
+   `min_ratio_bps` and `LendingProtocol.MIN_RATIO_BPS`).
+3. **Update addresses** in `contracts/deployments/base-sepolia.json`, this
+   README's table, and `dashboard/.env.local` / `dashboard/lib/contracts.ts`.
+4. **Recompile the circuit + regenerate the verifier only if you changed
+   `main.nr`** (it is unchanged here, so the existing UltraVerifier still matches):
+   ```bash
+   cd circuits/collateral_proof && nargo compile
+   bb write_vk -b target/collateral_proof.json && bb contract -k target/vk
+   ```
+5. **Run one live epoch** on Linux with the Noir toolchain:
+   ```bash
+   cd agent && python main.py --once
+   ```
+   The proof's Merkle root must equal the on-chain committed root, or
+   `submitReport` reverts with `Root mismatch` — which is the binding working.
 
 ---
 
